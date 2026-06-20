@@ -51,6 +51,23 @@ const Facebook = ({ size = 24, ...props }: BrandIconProps) => (
   </svg>
 );
 
+const Youtube = ({ size = 24, ...props }: BrandIconProps) => (
+  <svg
+    width={size}
+    height={size}
+    {...props}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17z" />
+    <polygon points="10 15 15 12 10 9" fill="currentColor" />
+  </svg>
+);
+
 const Instagram = ({ size = 24, ...props }: BrandIconProps) => (
   <svg
     width={size}
@@ -69,27 +86,10 @@ const Instagram = ({ size = 24, ...props }: BrandIconProps) => (
   </svg>
 );
 
-const Youtube = ({ size = 24, ...props }: BrandIconProps) => (
-  <svg
-    width={size}
-    height={size}
-    {...props}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17z" />
-    <polygon points="10 15 15 12 10 9" fill="currentColor" />
-  </svg>
-);
-
 const socialLinks = [
-  { href: 'https://facebook.com', label: 'Facebook', Icon: Facebook },
-  { href: 'https://youtube.com', label: 'YouTube', Icon: Youtube },
-  { href: 'https://instagram.com', label: 'Instagram', Icon: Instagram },
+  { href: 'https://www.facebook.com/share/14hqrAbEp1Y/?mibextid=wwXIfr', label: 'Facebook', Icon: Facebook },
+  { href: 'https://www.youtube.com/@mrduymanhsax', label: 'YouTube', Icon: Youtube },
+  { href: 'https://www.instagram.com/manhsax/', label: 'Instagram', Icon: Instagram },
 ];
 
 const fallbackImageClass =
