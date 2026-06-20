@@ -9,6 +9,7 @@ import {
   workshops as defaultWorkshops,
 } from '../content';
 import type { BlogPost, Course, MediaItem, SiteImages, Tour, Workshop } from '../content';
+import { normalizeVideoEmbedUrl } from './video-url';
 
 /**
  * Each fetcher reads from Supabase when configured, ordered by `sort_order`.
@@ -62,7 +63,7 @@ export async function fetchMedia(): Promise<MediaItem[]> {
     category: item.category || defaultMedia[index]?.category || 'Video',
     duration: item.duration || defaultMedia[index]?.duration || '',
     thumbnail: item.thumbnail || defaultMedia[index]?.thumbnail || '',
-    videoUrl: item.video_url || defaultMedia[index]?.videoUrl || '',
+    videoUrl: normalizeVideoEmbedUrl(item.video_url || defaultMedia[index]?.videoUrl || ''),
   }));
 }
 

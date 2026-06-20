@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { SafeImage } from './sections';
 import type { ArtistProfile, Course, MediaItem, Tour, Workshop } from './content';
+import { normalizeVideoEmbedUrl } from './lib/video-url';
 
 const fieldClassName =
   'w-full bg-[#FBF6EC] border border-[#BF9B30]/25 text-[#2A2520] text-sm px-4 py-3 focus:outline-none focus:border-[#AF8C43] focus:ring-2 focus:ring-[#AF8C43]/15 transition-colors rounded-xl';
@@ -320,6 +321,8 @@ interface MediaDetailPageProps {
 }
 
 export function MediaDetailPage({ item, onBack }: MediaDetailPageProps) {
+  const videoUrl = normalizeVideoEmbedUrl(item.videoUrl);
+
   return (
     <DetailShell
       kicker={item.category}
@@ -329,14 +332,21 @@ export function MediaDetailPage({ item, onBack }: MediaDetailPageProps) {
       onBack={onBack}
       hero={
         <div className="relative aspect-[16/9] bg-[#211D18]">
-          <iframe
-            src={item.videoUrl}
-            title={item.title}
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="absolute inset-0 h-full w-full"
-          />
+          {videoUrl ? (
+            <iframe
+              src={videoUrl}
+              title={item.title}
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center px-6 text-center font-sans-clean text-sm text-[#F7F1E5]/78">
+              Video chưa có link YouTube hợp lệ để nhúng.
+            </div>
+          )}
         </div>
       }
       metaChips={<MetaChip icon={<Clock size={13} />}>{item.duration}</MetaChip>}

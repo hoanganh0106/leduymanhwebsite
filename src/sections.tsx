@@ -115,6 +115,7 @@ export function SafeImage({ src, alt = '', className = '', fallbackClassName = '
       src={src}
       alt={alt}
       className={className}
+      referrerPolicy="no-referrer"
       onError={(event) => {
         setFailed(true);
         onError?.(event);
@@ -359,8 +360,8 @@ interface HeroSectionProps {
 
 export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: HeroSectionProps) {
   const stats: [string, string][] = [
-    ['12+', 'năm sân khấu'],
-    ['80+', 'đêm diễn'],
+    ['20+', 'năm gắn bó'],
+    ['100+', 'đêm diễn'],
     ['300+', 'học viên'],
   ];
 
@@ -468,7 +469,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
                     ))}
                   </span>
                   <span className="block font-sans-clean text-[10px] text-[#2A2520]/60 font-semibold mt-0.5">
-                    Soloist &amp; Educator
+                    Thạc sĩ · Nghệ sĩ Saxophone
                   </span>
                 </span>
               </div>
@@ -538,9 +539,9 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
 
           <div className="grid grid-cols-3 max-w-xl divide-x divide-[#BF9B30]/20">
             {[
-              ['12+', 'năm sân khấu'],
+              ['20+', 'năm gắn bó'],
               ['300+', 'học viên'],
-              ['80+', 'đêm diễn'],
+              ['100+', 'đêm diễn'],
             ].map(([number, label]) => (
               <div key={label} className="px-3 sm:px-6 first:pl-0 text-center sm:text-left">
                 <span className="block font-serif-lux text-3xl sm:text-4xl font-light text-[#AF8C43]">{number}</span>
@@ -552,7 +553,7 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
           <div className="flex flex-wrap items-center justify-between gap-5 pt-1">
             <div className="leading-none">
               <span className="font-vietnamese-signature text-3xl text-[#AF8C43]">Lê Duy Mạnh</span>
-              <span className="block font-sans-clean text-[10px] uppercase text-[#2A2520]/45 font-bold tracked-sm mt-1">Saxophone Soloist</span>
+              <span className="block font-sans-clean text-[10px] uppercase text-[#2A2520]/45 font-bold tracked-sm mt-1">Thạc sĩ · Giảng viên Saxophone</span>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <button
@@ -694,11 +695,11 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
           <div className="max-w-2xl mx-auto text-center scroll-reveal">
             <span className="section-kicker justify-center">
               <CalendarDays size={16} />
-              Lưu diễn
+              Sân khấu
             </span>
-            <h3 className="font-serif-lux text-3xl sm:text-4xl lg:text-5xl mt-4 mb-4 font-light text-[#211D18]">Dấu mốc sân khấu gần đây</h3>
+            <h3 className="font-serif-lux text-3xl sm:text-4xl lg:text-5xl mt-4 mb-4 font-light text-[#211D18]">Lưu diễn & liveshow tiêu biểu</h3>
             <p className="font-sans-clean text-sm text-[#2A2520]/62 leading-relaxed">
-              Một dòng thời gian các chương trình biểu diễn — để người xem cảm nhận ngay nhịp hoạt động và chất nghệ sĩ.
+              Một dòng thời gian những đêm diễn, chương trình giao lưu và chuyến lưu diễn đáng nhớ — nơi tiếng saxophone của anh chạm tới khán giả trong nước và quốc tế.
             </p>
           </div>
 
@@ -842,9 +843,9 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
               <Ticket size={16} />
               Workshop
             </span>
-            <h3 className="font-serif-lux text-3xl sm:text-4xl mt-4 mb-5 font-light text-[#211D18]">Lịch đào tạo chọn lọc</h3>
+            <h3 className="font-serif-lux text-3xl sm:text-4xl mt-4 mb-5 font-light text-[#211D18]">Các workshop chọn lọc</h3>
             <p className="font-sans-clean text-sm text-[#2A2520]/62 leading-relaxed">
-              Các buổi học ngắn, tập trung một chủ đề rõ ràng để học viên thử phương pháp trước khi chọn lộ trình dài hạn.
+              Các buổi học ngắn, tập trung một chủ đề rõ ràng để học viên thử phương pháp trước khi chọn lộ trình dài hạn. Liên hệ để nhận lịch mở gần nhất.
             </p>
           </div>
 

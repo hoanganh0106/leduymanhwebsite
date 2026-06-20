@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type DragEvent, type FormEvent } from 'react';
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   ChevronUp,
+  Crop,
   LogOut,
   Plus,
   RefreshCw,
@@ -10,7 +12,10 @@ import {
   Settings,
   Trash2,
   UploadCloud,
+  X,
 } from 'lucide-react';
+import Cropper, { type Area } from 'react-easy-crop';
+import 'react-easy-crop/react-easy-crop.css';
 import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { defaultAboutImage, defaultHeroImage } from './content';
@@ -26,6 +31,8 @@ interface FieldDef {
   type?: FieldType;
   rows?: number;
   placeholder?: string;
+  /** Tỉ lệ khung cắt mặc định cho field ảnh (rộng/cao). */
+  imageAspect?: number;
 }
 interface ResourceDef {
   table: string;
@@ -75,7 +82,7 @@ const resources: ResourceDef[] = [
       { key: 'description', label: 'Mô tả chi tiết', type: 'textarea', placeholder: 'Lộ trình từ con số 0...' },
       { key: 'duration', label: 'Thời lượng', placeholder: '3 tháng (24 buổi)' },
       { key: 'price', label: 'Học phí', placeholder: 'Liên hệ tư vấn' },
-      { key: 'image', label: 'Link ảnh (URL)', placeholder: 'https://...' },
+      { key: 'image', label: 'Ảnh khóa học', type: 'image', imageAspect: 4 / 3 },
     ],
   },
   {
@@ -89,7 +96,7 @@ const resources: ResourceDef[] = [
       { key: 'date', label: 'Ngày đăng', placeholder: '10 Tháng 5, 2026' },
       { key: 'excerpt', label: 'Tóm tắt', type: 'textarea', rows: 3, placeholder: 'Mô tả ngắn hiển thị ở card blog' },
       { key: 'content', label: 'Nội dung bài viết', type: 'textarea', rows: 8, placeholder: 'Nội dung dài, tạo đoạn mới bằng dòng trống' },
-      { key: 'image', label: 'Ảnh bìa', type: 'image', placeholder: 'https://...' },
+      { key: 'image', label: 'Ảnh bìa', type: 'image', imageAspect: 16 / 9 },
     ],
   },
   {
@@ -101,7 +108,7 @@ const resources: ResourceDef[] = [
       { key: 'title', label: 'Tiêu đề video', placeholder: 'Hạ Trắng - Live Acoustic' },
       { key: 'category', label: 'Chuyên mục', placeholder: 'VIDEO BIỂU DIỄN' },
       { key: 'duration', label: 'Thời lượng', placeholder: '05:42' },
-      { key: 'thumbnail', label: 'Thumbnail', type: 'image', placeholder: 'https://...' },
+      { key: 'thumbnail', label: 'Thumbnail', type: 'image', imageAspect: 16 / 9 },
       { key: 'video_url', label: 'Link nhúng video', placeholder: 'https://www.youtube.com/embed/...' },
     ],
   },
@@ -111,81 +118,281 @@ const fieldClass =
   'w-full bg-[#FBF6EC] border border-[#BF9B30]/25 text-[#2A2520] text-sm px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-[#AF8C43] focus:ring-2 focus:ring-[#AF8C43]/15 transition-colors';
 const labelClass = 'block text-[10px] uppercase font-bold tracked-sm text-[#9A7C30] mb-1.5';
 
+/* ------------------------------------------------------------------ */
+/* Image cropper — tải ảnh từ máy, cắt + căn chỉnh + xem trước rồi lưu  */
+/* ------------------------------------------------------------------ */
+
+const ASPECT_PRESETS: Array<{ label: string; value: number }> = [
+  { label: '16:9', value: 16 / 9 },
+  { label: '4:3', value: 4 / 3 },
+  { label: '1:1', value: 1 },
+  { label: '3:4', value: 3 / 4 },
+];
+
+/** Cạnh dài tối đa của ảnh xuất ra, để file upload không quá nặng. */
+const MAX_OUTPUT_EDGE = 1600;
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', () => reject(new Error('Không đọc được ảnh.')));
+    image.src = src;
+  });
+}
+
+/** Cắt vùng `area` (theo pixel ảnh gốc) ra một Blob JPEG. */
+async function cropToBlob(imageSrc: string, area: Area): Promise<Blob> {
+  const image = await loadImage(imageSrc);
+  const longest = Math.max(area.width, area.height);
+  const scale = longest > MAX_OUTPUT_EDGE ? MAX_OUTPUT_EDGE / longest : 1;
+  const outW = Math.max(1, Math.round(area.width * scale));
+  const outH = Math.max(1, Math.round(area.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Trình duyệt không hỗ trợ canvas.');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, area.x, area.y, area.width, area.height, 0, 0, outW, outH);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Không xuất được ảnh.'))),
+      'image/jpeg',
+      0.9,
+    );
+  });
+}
+
+function ImageCropperModal({
+  file,
+  initialAspect,
+  onCancel,
+  onConfirm,
+}: {
+  file: File;
+  initialAspect: number;
+  onCancel: () => void;
+  onConfirm: (blob: Blob) => Promise<void>;
+}) {
+  const [imageSrc] = useState(() => URL.createObjectURL(file));
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [aspect, setAspect] = useState(initialAspect);
+  const [areaPixels, setAreaPixels] = useState<Area | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => () => URL.revokeObjectURL(imageSrc), [imageSrc]);
+
+  const onCropComplete = useCallback((_area: Area, pixels: Area) => {
+    setAreaPixels(pixels);
+  }, []);
+
+  const handleConfirm = async () => {
+    if (!areaPixels) return;
+    setBusy(true);
+    setError('');
+    try {
+      const blob = await cropToBlob(imageSrc, areaPixels);
+      await onConfirm(blob);
+      // Thành công: parent gỡ modal, không cần reset state ở đây.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cắt ảnh thất bại.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#211D18]/55 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-[1.3rem] border border-[#BF9B30]/20 bg-[#FFFDF9] shadow-[0_24px_60px_rgba(33,29,24,0.28)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[#BF9B30]/15 px-5 py-3.5">
+          <h3 className="flex items-center gap-2 font-serif-lux text-lg text-[#211D18]">
+            <Crop size={18} className="text-[#AF8C43]" /> Cắt &amp; căn chỉnh ảnh
+          </h3>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            aria-label="Đóng"
+            className="rounded-lg p-1.5 text-[#9A7C30] transition-colors hover:bg-[#F6EFDF] disabled:opacity-40"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="relative h-[320px] w-full bg-[#211D18]">
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={aspect}
+            minZoom={1}
+            maxZoom={3}
+            restrictPosition
+            showGrid
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={onCropComplete}
+          />
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracked-sm text-[#9A7C30]">Tỉ lệ</span>
+            {ASPECT_PRESETS.map((preset) => {
+              const active = Math.abs(aspect - preset.value) < 0.001;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setAspect(preset.value)}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                    active
+                      ? 'border-[#AF8C43] bg-[#AF8C43] text-white'
+                      : 'border-[#BF9B30]/30 text-[#9A7C30] hover:bg-[#F6EFDF]'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <label className="flex items-center gap-3">
+            <span className="shrink-0 text-[10px] font-bold uppercase tracked-sm text-[#9A7C30]">Phóng to</span>
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.01}
+              value={zoom}
+              onChange={(event) => setZoom(Number(event.target.value))}
+              className="w-full accent-[#AF8C43]"
+            />
+          </label>
+
+          <p className="text-[11px] text-[#2A2520]/55">
+            Kéo ảnh để di chuyển, kéo thanh để phóng to. Vùng trong khung chính là ảnh sẽ được lưu.
+          </p>
+
+          {error && (
+            <p className="rounded-lg border border-[#B4452F]/20 bg-[#B4452F]/5 px-3 py-2 text-xs text-[#B4452F]">{error}</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-[#BF9B30]/15 px-5 py-3.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full border border-[#BF9B30]/30 px-4 py-2 text-[11px] font-bold uppercase tracked-sm text-[#9A7C30] transition-colors hover:bg-[#F6EFDF] disabled:opacity-40"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleConfirm()}
+            disabled={busy || !areaPixels}
+            className="btn-luxury inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] px-5 py-2.5 text-[11px] font-bold uppercase tracked-sm text-white shadow-[0_8px_20px_rgba(191,155,48,0.28)] disabled:opacity-60"
+          >
+            <Check size={14} /> {busy ? 'Đang lưu…' : 'Cắt & Lưu'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImageField({
   value,
-  placeholder,
+  aspect = 4 / 3,
   onChange,
 }: {
   value: string;
-  placeholder?: string;
+  aspect?: number;
   onChange: (value: string) => void;
 }) {
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const uploadFile = async (file: File | null | undefined) => {
-    if (!file) return;
+  const pickFile = (file: File | null | undefined) => {
     setError('');
-
+    if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('Vui lòng chọn tệp ảnh.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Ảnh nên nhỏ hơn 5MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Ảnh gốc nên nhỏ hơn 10MB.');
       return;
     }
     if (!isSupabaseConfigured || !supabase) {
-      setError('Kết nối Supabase để tải ảnh lên Storage. Ô URL vẫn dùng được.');
+      setError('Cần kết nối Supabase để lưu ảnh.');
       return;
     }
+    setCropFile(file);
+  };
 
+  const uploadCropped = async (blob: Blob) => {
+    if (!supabase) throw new Error('Chưa kết nối Supabase.');
     setUploading(true);
-    const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
-    const path = `${Date.now()}-${safeName || 'site-image'}`;
-    const { error: uploadError } = await supabase.storage.from('site-images').upload(path, file, {
+    const path = `${Date.now()}-crop.jpg`;
+    const { error: uploadError } = await supabase.storage.from('site-images').upload(path, blob, {
       cacheControl: '3600',
       upsert: false,
+      contentType: 'image/jpeg',
     });
-
     if (uploadError) {
-      setError(`Lỗi tải ảnh: ${uploadError.message}`);
       setUploading(false);
-      return;
+      throw new Error(`Lỗi tải ảnh: ${uploadError.message}`);
     }
-
     const { data } = supabase.storage.from('site-images').getPublicUrl(path);
     onChange(data.publicUrl);
     setPreviewFailed(false);
     setUploading(false);
+    setCropFile(null);
   };
 
   const onDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
-    void uploadFile(event.dataTransfer.files[0]);
+    pickFile(event.dataTransfer.files?.[0]);
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <label
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
-        className="relative flex min-h-36 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#BF9B30]/35 bg-[#FBF6EC] text-center transition-colors hover:border-[#AF8C43]"
+        className="group relative flex min-h-36 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#BF9B30]/35 bg-[#FBF6EC] text-center transition-colors hover:border-[#AF8C43]"
       >
         {value && !previewFailed ? (
-          <img
-            src={value}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={() => setPreviewFailed(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
+          <>
+            <img
+              src={value}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={() => setPreviewFailed(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <span className="absolute inset-0 flex items-center justify-center gap-1.5 bg-[#211D18]/0 text-xs font-bold uppercase tracked-sm text-white opacity-0 transition-all group-hover:bg-[#211D18]/40 group-hover:opacity-100">
+              <UploadCloud size={16} /> {uploading ? 'Đang tải…' : 'Đổi ảnh'}
+            </span>
+          </>
         ) : (
           <span className="flex flex-col items-center gap-2 px-4 text-xs text-[#2A2520]/55">
             <UploadCloud size={24} className="text-[#AF8C43]" />
-            {value ? 'Ảnh lỗi hoặc không tải được' : 'Chọn hoặc kéo ảnh vào đây'}
+            {uploading ? 'Đang tải ảnh lên…' : value ? 'Ảnh lỗi hoặc không tải được' : 'Chọn hoặc kéo ảnh vào đây'}
           </span>
         )}
         <input
@@ -193,24 +400,40 @@ function ImageField({
           accept="image/*"
           className="sr-only"
           disabled={uploading}
-          onChange={(event) => void uploadFile(event.target.files?.[0])}
+          onChange={(event) => {
+            pickFile(event.target.files?.[0]);
+            event.target.value = '';
+          }}
         />
       </label>
-      <input
-        type="url"
-        value={value}
-        placeholder={placeholder || 'https://...'}
-        onChange={(event) => {
-          setPreviewFailed(false);
-          onChange(event.target.value);
-        }}
-        className={fieldClass}
-      />
+
       <div className="flex min-h-5 items-center justify-between gap-3 text-[11px] text-[#2A2520]/55">
-        <span>{uploading ? 'Đang tải ảnh lên…' : 'Có thể tải file hoặc dán URL ảnh.'}</span>
+        <span>Tải ảnh từ máy — bạn sẽ cắt &amp; căn chỉnh trước khi lưu.</span>
+        {value && !uploading && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setPreviewFailed(false);
+            }}
+            className="font-bold text-[#B4452F] hover:underline"
+          >
+            Xóa ảnh
+          </button>
+        )}
         {!isSupabaseConfigured && <span className="text-[#9A7C30]">Chưa nối Supabase</span>}
       </div>
+
       {error && <p className="rounded-lg border border-[#B4452F]/20 bg-[#B4452F]/5 px-3 py-2 text-xs text-[#B4452F]">{error}</p>}
+
+      {cropFile && (
+        <ImageCropperModal
+          file={cropFile}
+          initialAspect={aspect}
+          onCancel={() => setCropFile(null)}
+          onConfirm={uploadCropped}
+        />
+      )}
     </div>
   );
 }
@@ -341,7 +564,7 @@ function ResourceEditor({ def }: { def: ResourceDef }) {
                     {isImageField ? (
                       <ImageField
                         value={String(row[field.key] ?? '')}
-                        placeholder={field.placeholder}
+                        aspect={field.imageAspect}
                         onChange={(value) => setField(row.id, field.key, value)}
                       />
                     ) : field.type === 'textarea' ? (
@@ -398,9 +621,9 @@ function ResourceEditor({ def }: { def: ResourceDef }) {
 
 type SiteImageKey = 'hero_image' | 'about_image';
 
-const siteImageSlots: Array<{ key: SiteImageKey; label: string; fallback: string }> = [
-  { key: 'hero_image', label: 'Ảnh Hero', fallback: defaultHeroImage },
-  { key: 'about_image', label: 'Ảnh Giới thiệu', fallback: defaultAboutImage },
+const siteImageSlots: Array<{ key: SiteImageKey; label: string; fallback: string; aspect: number }> = [
+  { key: 'hero_image', label: 'Ảnh Hero', fallback: defaultHeroImage, aspect: 3 / 4 },
+  { key: 'about_image', label: 'Ảnh Giới thiệu', fallback: defaultAboutImage, aspect: 4 / 3 },
 ];
 
 function SiteImagesEditor() {
@@ -473,7 +696,7 @@ function SiteImagesEditor() {
           </div>
           <ImageField
             value={values[slot.key]}
-            placeholder={slot.fallback}
+            aspect={slot.aspect}
             onChange={(value) => setValues((current) => ({ ...current, [slot.key]: value }))}
           />
         </section>
