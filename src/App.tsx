@@ -342,9 +342,17 @@ export default function App() {
     setDetail(null);
 
     if (target === 'hero') {
+      // "Trang chủ" returns to the default landing state: the artist intro tab,
+      // scrolled to the very top. The hero lives at the top of the page, so
+      // scrolling the window is reliable even when returning from a detail view
+      // (there the hero element is unmounted and heroRef would be null). Jump
+      // instantly when coming back from a detail page to avoid a long smooth
+      // scroll across the swapping layout.
+      const wasViewingDetail = detail !== null;
+      setActiveSection('about');
       window.history.replaceState(null, '', '/');
       window.requestAnimationFrame(() => {
-        heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.scrollTo({ top: 0, behavior: wasViewingDetail ? 'auto' : 'smooth' });
       });
       return;
     }
