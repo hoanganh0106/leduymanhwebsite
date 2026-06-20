@@ -87,7 +87,7 @@ const Instagram = ({ size = 24, ...props }: BrandIconProps) => (
 );
 
 const socialLinks = [
-  { href: 'https://www.facebook.com/share/14hqrAbEp1Y/?mibextid=wwXIfr', label: 'Facebook', Icon: Facebook },
+  { href: 'https://www.facebook.com/manh.sax', label: 'Facebook', Icon: Facebook },
   { href: 'https://www.youtube.com/@mrduymanhsax', label: 'YouTube', Icon: Youtube },
   { href: 'https://www.instagram.com/manhsax/', label: 'Instagram', Icon: Instagram },
 ];
