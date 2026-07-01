@@ -2,6 +2,16 @@
    instead of blocking this stylesheet. */
 @import "tailwindcss";
 
+@theme {
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-gold-ink: var(--gold-ink);
+  --color-ivory: var(--ivory);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+}
+
 /* ====================================================================
    QUIET-LUXURY · WARM IVORY DESIGN SYSTEM
    One cohesive light tone. Warm ink (never cold black), gold accents.
@@ -11,7 +21,7 @@
   --gold: #BF9B30;
   --gold-bright: #DFBD69;
   --gold-pale: #F2E6C2;
-  --gold-ink: #9A7C30;        /* deeper gold — for small text legibility */
+  --gold-ink: #7F6524;        /* deeper gold for AA small text on ivory */
 
   --ivory: #FBF9F4;           /* page base */
   --ivory-deep: #F4EDDF;      /* gentle section shade */
@@ -44,6 +54,36 @@ img, video, canvas, svg { display: block; max-width: 100%; }
 button, a, input, select, textarea {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid rgba(127, 101, 36, 0.92);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(191, 155, 48, 0.16);
+}
+
+.ui-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--gold-ink);
+}
+
+.ui-copy-muted {
+  color: rgba(42, 37, 32, 0.72);
+}
+
+.form-error {
+  display: block;
+  color: #B4452F;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-weight: 600;
 }
 
 /* The variable fonts render best without browser letter-spacing; opt-in via .tracked */
@@ -200,7 +240,8 @@ input, textarea { cursor: text; }
 .gold-underline:hover::after { width: 100%; }
 
 .nav-pill {
-  padding: 0.5rem 0.9rem;
+  min-height: 2.75rem;
+  padding: 0.72rem 0.95rem;
   border-radius: 999px;
   transition: color 0.3s var(--ease-soft), background-color 0.3s var(--ease-soft);
 }
@@ -252,6 +293,19 @@ input, textarea { cursor: text; }
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(223, 189, 105, 0.58), transparent);
   pointer-events: none;
+}
+.section-tabs-scroll-cue {
+  position: relative;
+}
+.section-tabs-scroll-cue::after {
+  content: '';
+  position: absolute;
+  top: 0.25rem;
+  right: 0;
+  bottom: 0.25rem;
+  width: 3.2rem;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(251, 249, 244, 0), rgba(251, 249, 244, 0.96));
 }
 .section-tab {
   position: relative;
@@ -409,6 +463,10 @@ body {
   .animate-float { animation: none; }
 }
 
+@media (min-width: 640px) {
+  .section-tabs-scroll-cue::after { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -427,6 +485,7 @@ body {
   perspective: 1400px;
   perspective-origin: 50% 45%;
   position: relative;
+  touch-action: pan-y;
 }
 
 /* Spotlight radial gradient backdrop behind the stage */
@@ -471,6 +530,9 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  justify-content: center;
   /* Transform is applied dynamically via inline styles */
   background: none;
   border: 0;

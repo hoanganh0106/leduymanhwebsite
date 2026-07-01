@@ -84,6 +84,9 @@ export interface ContactFormData {
   note: string;
 }
 
+export type LeadFormField = 'name' | 'phone';
+export type LeadFormErrors = Partial<Record<LeadFormField, string>>;
+
 export const defaultHeroImage =
   'https://images.unsplash.com/photo-1525994886773-080587e161c2?auto=format&fit=crop&q=80&w=1100';
 

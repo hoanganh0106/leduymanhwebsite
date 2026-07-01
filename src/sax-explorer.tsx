@@ -311,7 +311,7 @@ export function SaxExplorerSection() {
                         <button
                           key={part.id}
                           type="button"
-                          className={`sax-hotspot ${part.side === 'left' ? 'is-left' : ''} ${activeId === part.id ? 'is-active' : ''}`}
+                          className={`sax-hotspot focus-ring ${part.side === 'left' ? 'is-left' : ''} ${activeId === part.id ? 'is-active' : ''}`}
                           style={{
                             left: `${part.x}%`,
                             top: `${part.y}%`,
@@ -358,14 +358,14 @@ export function SaxExplorerSection() {
 
               {/* drag hint + reset */}
               <div className="mt-5 flex items-center justify-center gap-3">
-                <span className="sax-hint inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/30 bg-[#FFFDF9]/70 px-4 py-2 font-sans-clean text-[11px] font-semibold uppercase tracked-sm text-[#9A7C30] backdrop-blur-sm">
+                <span className="sax-hint inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/30 bg-[#FFFDF9]/70 px-4 py-2 font-sans-clean text-[11px] font-semibold uppercase tracked-sm text-gold-ink backdrop-blur-sm">
                   <Hand size={13} />
                   Kéo để xoay
                 </span>
                 <button
                   type="button"
                   onClick={resetRotation}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/30 bg-[#FFFDF9]/70 px-4 py-2 font-sans-clean text-[11px] font-semibold uppercase tracked-sm text-[#2A2520]/70 backdrop-blur-sm transition-colors hover:text-[#9A7C30] hover:border-[#BF9B30]"
+                  className="focus-ring inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/30 bg-[#FFFDF9]/70 px-4 py-2 font-sans-clean text-[11px] font-semibold uppercase tracked-sm text-[#2A2520]/70 backdrop-blur-sm transition-colors hover:text-gold-ink hover:border-[#BF9B30]"
                 >
                   <RotateCcw size={13} />
                   Xoay lại
@@ -386,7 +386,7 @@ export function SaxExplorerSection() {
                     type="button"
                     onFocus={() => focusPart(part.id)}
                     onClick={() => focusPart(part.id)}
-                    className={`sax-part-item flex w-full items-center gap-3.5 rounded-xl border border-[#BF9B30]/15 bg-[#FFFDF9]/55 px-4 py-3 text-left ${activeId === part.id ? 'is-active' : ''}`}
+                    className={`sax-part-item focus-ring flex min-h-14 w-full items-center gap-3.5 rounded-xl border border-[#BF9B30]/15 bg-[#FFFDF9]/55 px-4 py-3 text-left ${activeId === part.id ? 'is-active' : ''}`}
                   >
                     <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-gradient-to-br from-[#DFBD69] to-[#BF9B30] text-[11px] font-bold text-white">
                       {index + 1}
@@ -395,7 +395,7 @@ export function SaxExplorerSection() {
                       <span className="block font-sans-clean text-sm font-semibold text-[#211D18]">
                         {part.name}
                       </span>
-                      <span className="block font-sans-clean text-[11px] uppercase tracked-sm text-[#2A2520]/45">
+                      <span className="block font-sans-clean text-[11px] uppercase tracked-sm text-[#2A2520]/72">
                         {part.en}
                       </span>
                     </span>
@@ -407,13 +407,13 @@ export function SaxExplorerSection() {
             <div className="mt-5 min-h-[6.5rem] rounded-2xl border border-[#BF9B30]/20 bg-[#FFFDF9] p-5 shadow-[var(--shadow-card)]">
               {activePart ? (
                 <>
-                  <p className="font-serif-lux text-lg text-[#9A7C30]">{activePart.name}</p>
+                  <p className="font-serif-lux text-lg text-gold-ink">{activePart.name}</p>
                   <p className="mt-1.5 font-sans-clean text-sm leading-relaxed text-[#2A2520]/75">
                     {activePart.desc}
                   </p>
                 </>
               ) : (
-                <p className="font-garamond text-lg italic text-[#2A2520]/55">
+                <p className="font-garamond text-lg italic text-[#2A2520]/72">
                   Rê chuột hoặc chạm vào một điểm trên cây kèn để xem chi tiết bộ phận…
                 </p>
               )}

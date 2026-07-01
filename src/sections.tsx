@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Clock,
   GraduationCap,
+  LoaderCircle,
   Mail,
   MapPin,
   Menu,
@@ -24,6 +25,8 @@ import {
   type BlogPost,
   type ContactFormData,
   type Course,
+  type LeadFormField,
+  type LeadFormErrors,
   type MediaItem,
   type Tour,
   type Workshop,
@@ -94,13 +97,49 @@ const socialLinks = [
 
 const fallbackImageClass =
   'flex items-center justify-center bg-[linear-gradient(135deg,#EFE6D6,#FBF6EC)] text-[#AF8C43]';
+const responsiveImageWidths = [480, 768, 1024, 1360, 1680];
+const defaultResponsiveImageSizes = '(min-width: 1280px) 46vw, (min-width: 768px) 70vw, 100vw';
+
+const buildOptimizedImageUrl = (source: string, width: number) => {
+  try {
+    const url = new URL(source);
+    if (!url.hostname.includes('images.unsplash.com')) return null;
+    url.searchParams.set('auto', 'format');
+    url.searchParams.set('fit', url.searchParams.get('fit') || 'crop');
+    url.searchParams.set('q', url.searchParams.get('q') || '80');
+    url.searchParams.set('w', String(width));
+    return url.toString();
+  } catch {
+    return null;
+  }
+};
+
+const getResponsiveImageAttributes = (source?: string, srcSet?: string, sizes?: string) => {
+  if (!source || srcSet) return { src: source, srcSet, sizes };
+  const optimizedUrls = responsiveImageWidths
+    .map((width) => {
+      const url = buildOptimizedImageUrl(source, width);
+      return url ? `${url} ${width}w` : null;
+    })
+    .filter(Boolean)
+    .join(', ');
+
+  if (!optimizedUrls) return { src: source, srcSet, sizes };
+
+  return {
+    src: buildOptimizedImageUrl(source, 1024) ?? source,
+    srcSet: optimizedUrls,
+    sizes: sizes ?? defaultResponsiveImageSizes,
+  };
+};
 
 interface SafeImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   fallbackClassName?: string;
 }
 
-export function SafeImage({ src, alt = '', className = '', fallbackClassName = '', onError, ...props }: SafeImageProps) {
+export function SafeImage({ src, alt = '', className = '', fallbackClassName = '', onError, srcSet, sizes, ...props }: SafeImageProps) {
   const [failed, setFailed] = useState(!src);
+  const responsiveImage = getResponsiveImageAttributes(src, srcSet, sizes);
 
   if (failed) {
     return (
@@ -112,7 +151,9 @@ export function SafeImage({ src, alt = '', className = '', fallbackClassName = '
 
   return (
     <img
-      src={src}
+      src={responsiveImage.src}
+      srcSet={responsiveImage.srcSet}
+      sizes={responsiveImage.sizes}
       alt={alt}
       className={className}
       referrerPolicy="no-referrer"
@@ -148,7 +189,8 @@ export function SectionTabs({ tabs, activeTab, onTabChange }: SectionTabsProps) 
   return (
     <section id="content-tabs" className="section-tabs-shell relative z-20">
       <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-12 py-3.5 sm:py-5">
-        <div role="tablist" aria-label="Nội dung trang" className="no-scrollbar flex gap-2 overflow-x-auto sm:justify-center">
+        <div className="section-tabs-scroll-cue">
+        <div role="tablist" aria-label="Nội dung trang" className="no-scrollbar flex gap-2 overflow-x-auto pr-10 sm:justify-center sm:pr-0">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             return (
@@ -159,17 +201,18 @@ export function SectionTabs({ tabs, activeTab, onTabChange }: SectionTabsProps) 
                 data-tab-id={tab.id}
                 aria-selected={isActive}
                 onClick={() => onTabChange(tab.id)}
-                className={`section-tab shrink-0 min-w-[8.6rem] rounded-full border px-4 py-2.5 text-left transition-all duration-300 ${
+                className={`section-tab focus-ring min-h-11 shrink-0 min-w-[8.6rem] rounded-full border px-4 py-3 text-left transition-all duration-300 ${
                   isActive
                     ? 'border-[#BF9B30]/55 bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white shadow-[0_12px_28px_rgba(191,155,48,0.26)]'
-                    : 'border-[#BF9B30]/18 bg-[#FFFDF9]/78 text-[#2A2520] hover:border-[#BF9B30]/45 hover:text-[#9A7C30]'
+                    : 'border-[#BF9B30]/18 bg-[#FFFDF9]/78 text-[#2A2520] hover:border-[#BF9B30]/45 hover:text-gold-ink'
                 }`}
               >
-                <span className="block font-sans-clean text-[9px] uppercase tracked-sm font-bold opacity-75">{tab.eyebrow}</span>
+                <span className="block font-sans-clean text-[11px] uppercase tracked-sm font-bold opacity-75">{tab.eyebrow}</span>
                 <span className="mt-0.5 block font-serif-lux text-lg leading-none">{tab.label}</span>
               </button>
             );
           })}
+        </div>
         </div>
       </div>
     </section>
@@ -202,8 +245,8 @@ export function Header({
   const navClassName =
     'hidden lg:flex items-center gap-1 text-[11px] font-sans-clean uppercase font-semibold tracked-sm text-[#3A332B]/85';
   const navItemClassName = (item: (typeof menuItems)[number]) =>
-    `nav-pill gold-line transition-colors ${
-      item.id === activeNav ? 'bg-[#BF9B30]/10 text-[#9A7C30]' : 'hover:text-[#9A7C30]'
+    `nav-pill focus-ring gold-line transition-colors ${
+      item.id === activeNav ? 'bg-[#BF9B30]/10 text-gold-ink' : 'hover:text-gold-ink'
     }`;
   const handleNavigate = (event: MouseEvent<HTMLAnchorElement>, target: SiteSectionId) => {
     event.preventDefault();
@@ -252,14 +295,14 @@ export function Header({
             onClick={(event) => handleNavigate(event, 'hero')}
             aria-hidden={!showHeaderBrand}
             tabIndex={showHeaderBrand ? 0 : -1}
-            className={`hidden lg:flex flex-col items-center text-center group shrink-0 transition-all duration-500 ${
+            className={`focus-ring hidden rounded-xl px-3 py-2 lg:flex flex-col items-center text-center group shrink-0 transition-all duration-500 ${
               showHeaderBrand ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'
             }`}
           >
-            <span className="font-serif-lux text-lg font-medium text-[#211D18] group-hover:text-[#9A7C30] transition-colors duration-500">
+            <span className="font-serif-lux text-lg font-medium text-[#211D18] group-hover:text-gold-ink transition-colors duration-500">
               LÊ DUY MẠNH
             </span>
-            <span className="font-sans-clean text-[10px] text-[#9A7C30] mt-0.5 font-bold tracked">SAXOPHONE</span>
+            <span className="font-sans-clean text-[11px] text-gold-ink mt-0.5 font-bold tracked">SAXOPHONE</span>
           </a>
 
           <nav className={navClassName}>
@@ -277,16 +320,16 @@ export function Header({
           </nav>
 
           {/* Mobile wordmark (always visible) */}
-          <a href="#hero" onClick={(event) => handleNavigate(event, 'hero')} className="lg:hidden flex shrink-0 flex-col overflow-visible">
+          <a href="#hero" onClick={(event) => handleNavigate(event, 'hero')} className="focus-ring lg:hidden flex shrink-0 flex-col overflow-visible rounded-xl px-1 py-1">
             <span className="font-serif-lux whitespace-nowrap pb-0.5 text-base leading-[1.35] font-medium text-[#211D18]">
               Lê Duy Mạnh
             </span>
-            <span className="font-sans-clean text-[8px] text-[#9A7C30] mt-0.5 font-bold tracked">SAXOPHONE</span>
+            <span className="font-sans-clean text-[11px] text-gold-ink mt-0.5 font-bold tracked">SAXOPHONE</span>
           </a>
 
           <button
             onClick={onMenuToggle}
-            className="lg:hidden -mr-1 flex h-10 w-10 items-center justify-center rounded-full border border-[#BF9B30]/18 bg-[#FFFDF9]/75 text-[#2A2520] shadow-[0_8px_22px_rgba(74,58,28,0.08)] transition-colors hover:text-[#9A7C30]"
+            className="focus-ring lg:hidden -mr-1 flex h-11 w-11 items-center justify-center rounded-full border border-[#BF9B30]/18 bg-[#FFFDF9]/75 text-[#2A2520] shadow-[0_8px_22px_rgba(74,58,28,0.08)] transition-colors hover:text-gold-ink"
             aria-label={isMenuOpen ? 'Đóng menu' : 'Mở menu'}
             type="button"
           >
@@ -303,7 +346,7 @@ export function Header({
       >
         <div className="flex-1 flex flex-col justify-center items-center px-8 text-center">
           <span className="font-vietnamese-signature text-4xl text-[#AF8C43]">Lê Duy Mạnh</span>
-          <span className="font-sans-clean text-[10px] text-[#9A7C30] font-bold tracked mt-2">SAXOPHONE SOLOIST</span>
+          <span className="font-sans-clean text-[11px] text-gold-ink font-bold tracked mt-2">SAXOPHONE SOLOIST</span>
 
           <div className="mt-10 flex flex-col items-center gap-6 font-serif-lux text-xl text-[#211D18]">
             {menuItems.map((item) => (
@@ -312,7 +355,7 @@ export function Header({
                 href={item.href}
                 onClick={(event) => handleNavigate(event, item.id)}
                 aria-current={item.id === activeNav ? 'page' : undefined}
-                className={`gold-line transition-colors ${item.id === activeNav ? 'text-[#AF8C43]' : 'hover:text-[#AF8C43]'}`}
+                className={`focus-ring gold-line rounded-lg px-3 py-2 transition-colors ${item.id === activeNav ? 'text-gold-ink' : 'hover:text-gold-ink'}`}
               >
                 {item.label}
               </a>
@@ -322,7 +365,7 @@ export function Header({
           <a
             href="#contact"
             onClick={(event) => handleNavigate(event, 'contact')}
-            className="btn-shine mt-11 inline-flex items-center gap-2 px-9 py-3.5 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white text-xs font-sans-clean font-bold uppercase tracked-sm shadow-[0_12px_30px_rgba(191,155,48,0.30)]"
+            className="btn-shine focus-ring mt-11 inline-flex min-h-11 items-center gap-2 px-9 py-3.5 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white text-xs font-sans-clean font-bold uppercase tracked-sm shadow-[0_12px_30px_rgba(191,155,48,0.30)]"
           >
             Đăng ký học thử
             <ArrowRight size={15} />
@@ -338,13 +381,13 @@ export function Header({
                 target="_blank"
                 rel="noreferrer"
                 aria-label={label}
-                className="w-10 h-10 rounded-full border border-[#BF9B30]/25 bg-[#FFFDF9] flex items-center justify-center text-[#2A2520]/70 hover:text-[#AF8C43] hover:border-[#AF8C43]/50 transition-all"
+                className="focus-ring w-11 h-11 rounded-full border border-[#BF9B30]/25 bg-[#FFFDF9] flex items-center justify-center text-[#2A2520]/70 hover:text-[#AF8C43] hover:border-[#AF8C43]/50 transition-all"
               >
                 <Icon size={15} />
               </a>
             ))}
           </div>
-          <p className="font-sans-clean text-[11px] text-[#2A2520]/55">0389172879 · Hào Nam, Ô Chợ Dừa, TP Hà Nội</p>
+          <p className="font-sans-clean text-[11px] text-[#2A2520]/72">0389172879 · Hào Nam, Ô Chợ Dừa, TP Hà Nội</p>
         </div>
       </nav>
     </>
@@ -382,7 +425,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
         <div className="grid lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-10 items-center">
           {/* Text column */}
           <div className="lg:col-span-7 text-center lg:text-left">
-            <span className="hero-reveal hero-eyebrow inline-flex items-center gap-2 font-sans-clean text-[9px] sm:text-[11px] text-[#9A7C30] uppercase font-bold tracked-sm">
+            <span className="hero-reveal hero-eyebrow inline-flex items-center gap-2 font-sans-clean text-[11px] sm:text-[11px] text-gold-ink uppercase font-bold tracked-sm">
               <Sparkles size={13} />
               Saxophone Soloist · Live · Academy
             </span>
@@ -411,7 +454,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
                   event.preventDefault();
                   onNavigate('performances');
                 }}
-                className="btn-shine w-full sm:w-auto px-8 sm:px-9 py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] text-white text-xs font-sans-clean uppercase font-bold tracked-sm shadow-[0_12px_30px_rgba(191,155,48,0.30)] hover:shadow-[0_16px_40px_rgba(191,155,48,0.45)] hover:-translate-y-0.5 transition-all duration-300 inline-flex items-center justify-center gap-2"
+                className="btn-shine focus-ring w-full sm:w-auto px-8 sm:px-9 py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] text-white text-xs font-sans-clean uppercase font-bold tracked-sm shadow-[0_12px_30px_rgba(191,155,48,0.30)] hover:shadow-[0_16px_40px_rgba(191,155,48,0.45)] hover:-translate-y-0.5 transition-all duration-300 inline-flex items-center justify-center gap-2"
               >
                 <Play size={15} />
                 Xem biểu diễn
@@ -422,7 +465,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
                   event.preventDefault();
                   onNavigate('academy');
                 }}
-                className="group w-full sm:w-auto px-8 sm:px-9 py-3.5 sm:py-4 rounded-full border border-[#BF9B30]/45 bg-[#FFFDF9]/60 backdrop-blur-sm text-[#2A2520] text-xs font-sans-clean uppercase font-bold tracked-sm hover:border-[#BF9B30] hover:text-[#9A7C30] hover:bg-[#FFFDF9] transition-all duration-300 inline-flex items-center justify-center gap-2"
+                className="focus-ring group w-full sm:w-auto px-8 sm:px-9 py-3.5 sm:py-4 rounded-full border border-[#BF9B30]/45 bg-[#FFFDF9]/60 backdrop-blur-sm text-[#2A2520] text-xs font-sans-clean uppercase font-bold tracked-sm hover:border-[#BF9B30] hover:text-gold-ink hover:bg-[#FFFDF9] transition-all duration-300 inline-flex items-center justify-center gap-2"
               >
                 Lộ trình học
                 <ChevronRight size={14} className="transition-transform group-hover:translate-x-1" />
@@ -433,7 +476,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
               {stats.map(([value, label]) => (
                 <div key={label} className="hero-stat min-h-[4.7rem] rounded-xl sm:rounded-2xl px-1.5 sm:px-2 py-3 sm:py-4 text-center">
                   <span className="block font-serif-lux text-[1.35rem] sm:text-3xl text-[#AF8C43]">{value}</span>
-                  <span className="mt-1 block font-sans-clean text-[9px] sm:text-[10px] uppercase text-[#2A2520]/55 font-semibold">
+                  <span className="mt-1 block font-sans-clean text-[11px] sm:text-[11px] uppercase text-[#2A2520]/72 font-semibold">
                     {label}
                   </span>
                 </div>
@@ -468,7 +511,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
                       <Star key={index} size={11} className="text-[#BF9B30]" fill="currentColor" />
                     ))}
                   </span>
-                  <span className="block font-sans-clean text-[10px] text-[#2A2520]/60 font-semibold mt-0.5">
+                  <span className="block font-sans-clean text-[11px] text-[#2A2520]/72 font-semibold mt-0.5">
                     Thạc sĩ · Nghệ sĩ Saxophone
                   </span>
                 </span>
@@ -485,7 +528,7 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
           onNavigate('about');
         }}
         aria-label="Cuộn xuống phần giới thiệu"
-        className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 hidden sm:flex h-10 w-6 items-start justify-center rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/50 p-1.5"
+        className="focus-ring absolute bottom-5 left-1/2 z-20 -translate-x-1/2 hidden sm:flex h-11 w-11 items-start justify-center rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/50 p-2"
       >
         <span className="h-2 w-1 rounded-full bg-[#BF9B30] animate-scroll-cue" />
       </a>
@@ -545,7 +588,7 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
             ].map(([number, label]) => (
               <div key={label} className="px-3 sm:px-6 first:pl-0 text-center sm:text-left">
                 <span className="block font-serif-lux text-3xl sm:text-4xl font-light text-[#AF8C43]">{number}</span>
-                <span className="mt-1.5 block text-[9px] sm:text-[10px] uppercase text-[#2A2520]/50 font-sans-clean font-semibold tracked-sm">{label}</span>
+                <span className="mt-1.5 block text-[11px] sm:text-[11px] uppercase text-[#2A2520]/72 font-sans-clean font-semibold tracked-sm">{label}</span>
               </div>
             ))}
           </div>
@@ -553,13 +596,13 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
           <div className="flex flex-wrap items-center justify-between gap-5 pt-1">
             <div className="leading-none">
               <span className="font-vietnamese-signature text-3xl text-[#AF8C43]">Lê Duy Mạnh</span>
-              <span className="block font-sans-clean text-[10px] uppercase text-[#2A2520]/45 font-bold tracked-sm mt-1">Thạc sĩ · Giảng viên Saxophone</span>
+              <span className="block font-sans-clean text-[11px] uppercase text-[#2A2520]/72 font-bold tracked-sm mt-1">Thạc sĩ · Giảng viên Saxophone</span>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <button
                 type="button"
                 onClick={onViewBio}
-                className="btn-luxury inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] px-6 py-3 text-[11px] font-sans-clean font-bold uppercase tracked-sm text-white shadow-[0_10px_26px_rgba(191,155,48,0.28)] transition-all hover:-translate-y-0.5"
+                className="btn-luxury focus-ring inline-flex min-h-11 items-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] px-6 py-3 text-[11px] font-sans-clean font-bold uppercase tracked-sm text-white shadow-[0_10px_26px_rgba(191,155,48,0.28)] transition-all hover:-translate-y-0.5"
               >
                 Tiểu sử đầy đủ
                 <ArrowRight size={15} />
@@ -570,10 +613,10 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
                   event.preventDefault();
                   onNavigate('performances');
                 }}
-                className="group inline-flex items-center gap-3 font-sans-clean text-xs uppercase font-bold tracked-sm text-[#2A2520] hover:text-[#AF8C43] transition-colors w-fit"
+                className="focus-ring group inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/45 bg-[#FFFDF9]/60 px-6 py-3 font-sans-clean text-[11px] uppercase font-bold tracked-sm text-[#2A2520] hover:border-[#BF9B30] hover:text-gold-ink hover:bg-[#FFFDF9] transition-all duration-300"
               >
                 Xem lịch biểu diễn
-                <ArrowRight size={16} className="transform transition-transform group-hover:translate-x-2 text-[#AF8C43]" />
+                <ArrowRight size={16} className="transition-transform group-hover:translate-x-1 text-[#AF8C43]" />
               </a>
             </div>
           </div>
@@ -607,51 +650,45 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
               <span className="block text-[#AF8C43] italic">đúng trọng tâm nghệ sĩ.</span>
             </h2>
           </div>
-          <p className="lg:col-span-5 font-sans-clean text-sm sm:text-base text-[#2A2520]/65 leading-relaxed">
+          <p className="lg:col-span-5 font-sans-clean text-sm sm:text-base text-[#2A2520]/72 leading-relaxed">
             Khối biểu diễn gom video, dấu mốc lưu diễn và lời mời booking trong một không gian tinh tế, giúp người xem cảm nhận chất nghệ sĩ trước khi đi vào phần đào tạo.
           </p>
         </div>
 
         <div id="media" className="grid lg:grid-cols-12 gap-5 lg:gap-6 items-stretch">
-          <article className="lg:col-span-7 group flex flex-col overflow-hidden rounded-[1.2rem] border border-[#BF9B30]/15 bg-[#FFFDF9] shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] transition-all duration-500 scroll-reveal-scale">
-            <button
-              type="button"
-              onClick={() => onOpenDetail('media', spotlight.id)}
-              className="relative block w-full overflow-hidden"
-            >
-              <div className="relative aspect-[16/10] sm:aspect-[16/9]">
-                <SafeImage
-                  src={spotlight.thumbnail}
-                  alt={spotlight.title}
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1600ms] group-hover:scale-105"
-                />
-                <span className="absolute top-4 left-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFFDF9]/90 backdrop-blur-sm text-[#9A7C30] text-[10px] uppercase font-bold tracked-sm shadow-sm">
-                  <Music2 size={12} />
-                  {spotlight.category}
-                </span>
-                <span className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFDF9]/90 backdrop-blur-sm text-[#2A2520] text-[11px] font-semibold shadow-sm">
-                  <Clock size={12} />
-                  {spotlight.duration}
-                </span>
-                <span className="absolute inset-0 m-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#FFFDF9]/90 backdrop-blur-sm text-[#AF8C43] shadow-[0_10px_30px_rgba(74,58,28,0.25)] transition-transform duration-500 group-hover:scale-110">
-                  <Play size={24} className="ml-0.5" fill="currentColor" />
-                </span>
-              </div>
-            </button>
-            <div className="flex flex-wrap items-center justify-between gap-4 p-6 sm:p-7">
-              <h3 className="font-serif-lux text-2xl sm:text-3xl text-[#211D18] font-light leading-snug">{spotlight.title}</h3>
-              <button
-                type="button"
-                onClick={() => onOpenDetail('media', spotlight.id)}
-                className="btn-luxury inline-flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white text-[11px] uppercase font-bold tracked-sm shadow-[0_10px_26px_rgba(191,155,48,0.30)] hover:-translate-y-0.5 transition-all"
-              >
+          <button
+            type="button"
+            onClick={() => onOpenDetail('media', spotlight.id)}
+            className="focus-ring lg:col-span-7 group flex flex-col overflow-hidden rounded-[1.2rem] border border-[#BF9B30]/15 bg-[#FFFDF9] text-left shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] transition-all duration-500 scroll-reveal-scale"
+          >
+            <span className="relative block aspect-[16/10] sm:aspect-[16/9] overflow-hidden">
+              <SafeImage
+                src={spotlight.thumbnail}
+                alt={spotlight.title}
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1600ms] group-hover:scale-105"
+              />
+              <span className="absolute top-4 left-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFFDF9]/90 backdrop-blur-sm text-gold-ink text-[11px] uppercase font-bold tracked-sm shadow-sm">
+                <Music2 size={12} />
+                {spotlight.category}
+              </span>
+              <span className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFDF9]/90 backdrop-blur-sm text-[#2A2520] text-[11px] font-semibold shadow-sm">
+                <Clock size={12} />
+                {spotlight.duration}
+              </span>
+              <span className="absolute inset-0 m-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#FFFDF9]/90 backdrop-blur-sm text-[#AF8C43] shadow-[0_10px_30px_rgba(74,58,28,0.25)] transition-transform duration-500 group-hover:scale-110">
+                <Play size={24} className="ml-0.5" fill="currentColor" />
+              </span>
+            </span>
+            <span className="flex flex-wrap items-center justify-between gap-4 p-6 sm:p-7">
+              <span className="font-serif-lux text-2xl sm:text-3xl text-[#211D18] font-light leading-snug">{spotlight.title}</span>
+              <span className="btn-luxury inline-flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white text-[11px] uppercase font-bold tracked-sm shadow-[0_10px_26px_rgba(191,155,48,0.30)] group-hover:-translate-y-0.5 transition-all">
                 <Play size={14} fill="currentColor" />
                 Xem chi tiết
-              </button>
-            </div>
-          </article>
+              </span>
+            </span>
+          </button>
 
           <div className="lg:col-span-5 grid gap-5">
             {playlist.map((item, index) => (
@@ -659,7 +696,7 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
                 key={item.id}
                 type="button"
                 onClick={() => onOpenDetail('media', item.id)}
-                className={`scroll-reveal stagger-${index + 1} card-glow group flex items-center gap-4 rounded-[1.1rem] border border-[#BF9B30]/15 bg-[#FFFDF9] p-3 pr-5 text-left shadow-[var(--shadow-card)] hover:border-[#BF9B30]/40 hover:-translate-y-0.5 transition-all`}
+                className={`focus-ring scroll-reveal stagger-${index + 1} card-glow group flex min-h-24 items-center gap-4 rounded-[1.1rem] border border-[#BF9B30]/15 bg-[#FFFDF9] p-3 pr-5 text-left shadow-[var(--shadow-card)] hover:border-[#BF9B30]/40 hover:-translate-y-0.5 transition-all`}
               >
                 <span className="relative h-[72px] w-24 sm:w-28 shrink-0 overflow-hidden rounded-[0.8rem]">
                   <SafeImage
@@ -669,16 +706,16 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
                     decoding="async"
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
-                  <span className="absolute inset-0 flex items-center justify-center bg-[#2A2520]/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="absolute inset-0 flex items-center justify-center bg-[#2A2520]/10 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                     <Play size={16} className="text-white ml-0.5" fill="currentColor" />
                   </span>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="text-[10px] uppercase text-[#9A7C30] font-bold tracked-sm">{item.category}</span>
+                  <span className="text-[11px] uppercase text-gold-ink font-bold tracked-sm">{item.category}</span>
                   <h3 className="font-serif-lux text-lg text-[#211D18] mt-1 leading-snug line-clamp-2 group-hover:text-[#AF8C43] transition-colors">
                     {item.title}
                   </h3>
-                  <span className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-[#2A2520]/55">
+                  <span className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-[#2A2520]/72">
                     <Clock size={12} />
                     {item.duration}
                   </span>
@@ -698,7 +735,7 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
               Sân khấu
             </span>
             <h3 className="font-serif-lux text-3xl sm:text-4xl lg:text-5xl mt-4 mb-4 font-light text-[#211D18]">Lưu diễn & liveshow tiêu biểu</h3>
-            <p className="font-sans-clean text-sm text-[#2A2520]/62 leading-relaxed">
+            <p className="font-sans-clean text-sm text-[#2A2520]/72 leading-relaxed">
               Một dòng thời gian những đêm diễn, chương trình giao lưu và chuyến lưu diễn đáng nhớ — nơi tiếng saxophone của anh chạm tới khán giả trong nước và quốc tế.
             </p>
           </div>
@@ -727,25 +764,25 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
                     <button
                       type="button"
                       onClick={() => onOpenDetail('tour', tour.id ?? String(index))}
-                      className={`tour-card group ml-12 block w-full text-left lg:ml-0 rounded-[1.1rem] border border-[#BF9B30]/15 bg-[#FFFDF9] px-5 py-5 shadow-[var(--shadow-card)] hover:border-[#BF9B30]/40 hover:bg-[#FFFBF3] focus:outline-none focus:ring-2 focus:ring-[#AF8C43]/35 focus:ring-offset-2 focus:ring-offset-[#FBF9F4] ${
+                      className={`tour-card focus-ring group ml-12 block w-full text-left lg:ml-0 rounded-[1.1rem] border border-[#BF9B30]/15 bg-[#FFFDF9] px-5 py-5 shadow-[var(--shadow-card)] hover:border-[#BF9B30]/40 hover:bg-[#FFFBF3] ${
                         onLeft ? 'scroll-reveal-left lg:col-start-1 lg:text-right' : 'scroll-reveal-right lg:col-start-2'
                       }`}
                     >
                       <div className={`flex items-center gap-3 mb-2 ${onLeft ? 'lg:justify-end' : ''}`}>
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F6EFDF] px-3 py-1 text-[10px] uppercase font-bold tracked-sm text-[#9A7C30]">
+                        <span className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-[#F6EFDF] px-3 py-1 text-[11px] uppercase font-bold tracked-sm text-gold-ink">
                           <Star size={11} fill="currentColor" />
                           {tour.tag}
                         </span>
                         <span className="font-serif-lux text-lg text-[#AF8C43] leading-none">
-                          {tour.month} <span className="text-sm text-[#2A2520]/45">{tour.year}</span>
+                          {tour.month} <span className="text-sm text-[#2A2520]/72">{tour.year}</span>
                         </span>
                       </div>
                       <h4 className="font-serif-lux text-xl sm:text-2xl leading-snug text-[#211D18] group-hover:text-[#AF8C43] transition-colors">{tour.title}</h4>
-                      <p className={`font-sans-clean text-xs sm:text-sm text-[#2A2520]/58 mt-1.5 flex items-center gap-1.5 ${onLeft ? 'lg:justify-end' : ''}`}>
+                      <p className={`font-sans-clean text-xs sm:text-sm text-[#2A2520]/72 mt-1.5 flex items-center gap-1.5 ${onLeft ? 'lg:justify-end' : ''}`}>
                         <MapPin size={13} className="text-[#AF8C43] shrink-0" />
                         {tour.location} · {tour.role}
                       </p>
-                      <span className={`mt-3 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracked-sm text-[#9A7C30] opacity-0 transition-opacity group-hover:opacity-100 ${onLeft ? 'lg:flex-row-reverse' : ''}`}>
+                      <span className={`mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracked-sm text-gold-ink opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 ${onLeft ? 'lg:flex-row-reverse' : ''}`}>
                         Xem chi tiết
                         <ChevronRight size={12} />
                       </span>
@@ -760,7 +797,7 @@ export function PerformanceSection({ onOpenDetail, media, tours }: PerformanceSe
             <button
               type="button"
               onClick={() => onOpenDetail('booking', '')}
-              className="btn-luxury inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white text-[11px] uppercase font-bold tracked-sm shadow-[0_10px_26px_rgba(191,155,48,0.28)] hover:-translate-y-0.5 transition-all"
+              className="btn-luxury focus-ring inline-flex min-h-11 items-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] text-white text-[11px] uppercase font-bold tracked-sm shadow-[0_10px_26px_rgba(191,155,48,0.28)] hover:-translate-y-0.5 transition-all"
             >
               Mời nghệ sĩ biểu diễn
               <ArrowRight size={15} />
@@ -794,7 +831,7 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
               <span className="block text-[#AF8C43] italic">tập trung lộ trình và kết quả.</span>
             </h2>
           </div>
-          <p className="lg:col-span-5 font-sans-clean text-sm sm:text-base text-[#2A2520]/65 leading-relaxed">
+          <p className="lg:col-span-5 font-sans-clean text-sm sm:text-base text-[#2A2520]/72 leading-relaxed">
             Sau khi người xem đã cảm nhận phần sân khấu, khu vực dạy học đóng vai trò chuyển đổi: chọn khóa, xem workshop và gửi thông tin tư vấn.
           </p>
         </div>
@@ -805,7 +842,7 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
               key={course.id}
               type="button"
               onClick={() => onOpenDetail('course', course.id)}
-              className={`scroll-reveal stagger-${index + 1} card-glow group relative bg-[#FFFDF9] border border-[#BF9B30]/15 hover:border-[#BF9B30]/40 flex flex-col h-full overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] hover:-translate-y-1.5 rounded-[1.1rem] transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-[#AF8C43]/35 focus:ring-offset-4 focus:ring-offset-[#F7F1E5] text-left`}
+              className={`focus-ring scroll-reveal stagger-${index + 1} card-glow group relative bg-[#FFFDF9] border border-[#BF9B30]/15 hover:border-[#BF9B30]/40 flex flex-col h-full overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] hover:-translate-y-1.5 rounded-[1.1rem] transition-all duration-500 text-left`}
             >
               <div className="relative h-48 overflow-hidden">
                 <SafeImage
@@ -827,7 +864,7 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
                 <p className="font-sans-clean text-sm text-[#2A2520]/68 leading-relaxed mt-3 flex-1">{course.subtitle}</p>
                 <div className="mt-6 pt-5 border-t border-[#BF9B30]/15 flex items-center justify-between gap-4">
                   <span className="text-xs font-semibold text-[#2A2520]/80">{course.duration}</span>
-                  <span className="btn-luxury inline-flex items-center gap-2 px-4 py-2 text-[10px] uppercase font-sans-clean font-bold tracked-sm text-white bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] group-hover:from-[#2A2520] group-hover:to-[#2A2520] transition-all duration-300 rounded-full">
+                  <span className="btn-luxury inline-flex items-center gap-2 px-4 py-2 text-[11px] uppercase font-sans-clean font-bold tracked-sm text-white bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] group-hover:from-[#2A2520] group-hover:to-[#2A2520] transition-all duration-300 rounded-full">
                     Chi tiết
                     <ChevronRight size={12} />
                   </span>
@@ -844,7 +881,7 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
               Workshop
             </span>
             <h3 className="font-serif-lux text-3xl sm:text-4xl mt-4 mb-5 font-light text-[#211D18]">Các workshop chọn lọc</h3>
-            <p className="font-sans-clean text-sm text-[#2A2520]/62 leading-relaxed">
+            <p className="font-sans-clean text-sm text-[#2A2520]/72 leading-relaxed">
               Các buổi học ngắn, tập trung một chủ đề rõ ràng để học viên thử phương pháp trước khi chọn lộ trình dài hạn. Liên hệ để nhận lịch mở gần nhất.
             </p>
           </div>
@@ -857,13 +894,13 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
               >
                 <div className="md:col-span-2 flex md:block items-baseline gap-2">
                   <span className="block font-serif-lux text-2xl text-[#AF8C43] leading-none">{workshop.date}</span>
-                  <span className="font-sans-clean text-[11px] text-[#2A2520]/45">{workshop.year}</span>
+                  <span className="font-sans-clean text-[11px] text-[#2A2520]/72">{workshop.year}</span>
                 </div>
                 <div className="md:col-span-6">
                   <h4 className="font-serif-lux text-lg lg:text-xl text-[#211D18] group-hover:text-[#AF8C43] transition-colors duration-300 font-medium leading-snug">
                     {workshop.title}
                   </h4>
-                  <p className="font-sans-clean text-xs sm:text-sm text-[#2A2520]/56 mt-2 flex items-center gap-2">
+                  <p className="font-sans-clean text-xs sm:text-sm text-[#2A2520]/72 mt-2 flex items-center gap-2">
                     <MapPin size={14} className="text-[#AF8C43] shrink-0" />
                     {workshop.location}
                   </p>
@@ -875,7 +912,7 @@ export function AcademySection({ courses, workshops, onOpenDetail }: AcademySect
                   <button
                     type="button"
                     onClick={() => onOpenDetail('workshop', workshop.id ?? String(index))}
-                    className="btn-luxury inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full border border-[#BF9B30]/50 text-[#9A7C30] text-[10px] font-sans-clean uppercase font-bold tracked-sm hover:bg-gradient-to-r hover:from-[#BF9B30] hover:to-[#DFBD69] hover:text-white hover:border-transparent transition-all duration-300"
+                    className="btn-luxury focus-ring inline-flex min-h-11 items-center gap-1.5 px-4 py-2.5 rounded-full border border-[#BF9B30]/50 text-gold-ink text-[11px] font-sans-clean uppercase font-bold tracked-sm hover:bg-gradient-to-r hover:from-[#BF9B30] hover:to-[#DFBD69] hover:text-white hover:border-transparent transition-all duration-300"
                   >
                     {workshop.status}
                     <ChevronRight size={12} />
@@ -927,13 +964,13 @@ export function BlogSection({ posts }: BlogSectionProps) {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
-                <span className="font-sans-clean text-[10px] text-[#9A7C30] font-bold uppercase tracked-sm">{post.date}</span>
+                <span className="font-sans-clean text-[11px] text-gold-ink font-bold uppercase tracked-sm">{post.date}</span>
                 <h3 className="font-serif-lux text-lg text-[#211D18] group-hover:text-[#AF8C43] transition-colors duration-300 leading-snug font-medium mt-2">
                   {post.title}
                 </h3>
-                <p className="font-sans-clean text-xs text-[#2A2520]/60 leading-relaxed mt-3">{excerpt}</p>
+                <p className="font-sans-clean text-xs text-[#2A2520]/72 leading-relaxed mt-3">{excerpt}</p>
               </div>
-              <a href={`#/${KIND_TO_SEGMENT.post}/${slug}`} className="text-[10px] font-sans-clean font-bold uppercase tracked-sm text-[#2A2520] group-hover:text-[#AF8C43] transition-colors inline-flex items-center gap-1.5 mt-5">
+              <a href={`#/${KIND_TO_SEGMENT.post}/${slug}`} className="focus-ring text-[11px] font-sans-clean font-bold uppercase tracked-sm text-[#2A2520] group-hover:text-gold-ink transition-colors inline-flex min-h-11 items-center gap-1.5 mt-5 rounded-lg">
                 Đọc bài viết
                 <ArrowRight size={12} />
               </a>
@@ -958,11 +995,11 @@ export function BlogPostPage({ post, onBack }: BlogPostPageProps) {
         <div className="mx-auto max-w-xl rounded-[1.2rem] border border-[#BF9B30]/20 bg-[#FFFDF9] p-8 shadow-[var(--shadow-card)]">
           <span className="section-kicker justify-center">Blog</span>
           <h1 className="mt-4 font-serif-lux text-3xl text-[#211D18]">Không tìm thấy bài viết</h1>
-          <p className="mt-3 font-sans-clean text-sm text-[#2A2520]/65">Bài viết có thể đã được đổi slug hoặc chưa được xuất bản.</p>
+          <p className="mt-3 font-sans-clean text-sm text-[#2A2520]/72">Bài viết có thể đã được đổi slug hoặc chưa được xuất bản.</p>
           <button
             type="button"
             onClick={onBack}
-            className="mt-7 inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/45 px-5 py-3 text-[11px] font-bold uppercase tracked-sm text-[#9A7C30] transition-colors hover:bg-[#F6EFDF]"
+            className="focus-ring mt-7 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/45 px-5 py-3 text-[11px] font-bold uppercase tracked-sm text-gold-ink transition-colors hover:bg-[#F6EFDF]"
           >
             <ArrowLeft size={14} />
             Quay lại blog
@@ -983,7 +1020,7 @@ export function BlogPostPage({ post, onBack }: BlogPostPageProps) {
         <button
           type="button"
           onClick={onBack}
-          className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/80 px-4 py-2 text-[11px] font-bold uppercase tracked-sm text-[#9A7C30] transition-colors hover:bg-[#F6EFDF]"
+          className="focus-ring mb-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/80 px-4 py-2 text-[11px] font-bold uppercase tracked-sm text-gold-ink transition-colors hover:bg-[#F6EFDF]"
         >
           <ArrowLeft size={14} />
           Quay lại blog
@@ -1001,7 +1038,7 @@ export function BlogPostPage({ post, onBack }: BlogPostPageProps) {
             <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#211D18]/55 via-transparent to-transparent" />
           </div>
           <div className="p-6 sm:p-9 lg:p-11">
-            <span className="font-sans-clean text-[10px] font-bold uppercase tracked-sm text-[#9A7C30]">{post.date}</span>
+            <span className="font-sans-clean text-[11px] font-bold uppercase tracked-sm text-gold-ink">{post.date}</span>
             <h1 className="mt-3 font-serif-lux text-3xl sm:text-5xl leading-tight text-[#211D18]">{post.title}</h1>
             {getPostExcerpt(post) && (
               <p className="mt-5 font-garamond text-xl italic leading-relaxed text-[#7A5E22]">{getPostExcerpt(post)}</p>
@@ -1021,14 +1058,29 @@ export function BlogPostPage({ post, onBack }: BlogPostPageProps) {
 interface ContactSectionProps {
   formData: ContactFormData;
   formSubmitted: boolean;
-  onFormChange: (next: ContactFormData) => void;
+  formErrors: LeadFormErrors;
+  isSubmitting: boolean;
+  onFormFieldChange: (field: keyof ContactFormData, value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onReset: () => void;
 }
 
-export function ContactSection({ formData, formSubmitted, onFormChange, onSubmit, onReset }: ContactSectionProps) {
-  const fieldClassName =
-    'w-full bg-[#FBF6EC] border border-[#BF9B30]/25 text-[#2A2520] px-4 py-3 text-sm font-sans-clean focus:outline-none focus:border-[#AF8C43] focus:ring-2 focus:ring-[#AF8C43]/15 transition-colors rounded-xl';
+export function ContactSection({
+  formData,
+  formSubmitted,
+  formErrors,
+  isSubmitting,
+  onFormFieldChange,
+  onSubmit,
+  onReset,
+}: ContactSectionProps) {
+  const getFieldClassName = (hasError = false) =>
+    `focus-ring w-full bg-[#FBF6EC] border text-[#2A2520] px-4 py-3 text-sm font-sans-clean transition-colors rounded-xl ${
+      hasError
+        ? 'border-[#B4452F]/75 focus:border-[#B4452F] focus:ring-2 focus:ring-[#B4452F]/15'
+        : 'border-[#BF9B30]/25 focus:border-[#AF8C43] focus:ring-2 focus:ring-[#AF8C43]/15'
+    }`;
+  const errorId = (field: LeadFormField) => `contact-${field}-error`;
 
   return (
     <section id="contact" className="relative py-16 lg:py-28 bg-gradient-to-b from-[#FBF9F4] via-[#F7F1E5] to-[#FBF9F4] overflow-hidden">
@@ -1043,7 +1095,7 @@ export function ContactSection({ formData, formSubmitted, onFormChange, onSubmit
         <h2 className="scroll-reveal font-serif-lux text-3xl sm:text-4xl lg:text-5xl font-light text-[#211D18] mb-4 leading-tight">
           Bắt đầu hành trình saxophone của bạn
         </h2>
-        <p className="scroll-reveal font-sans-clean text-sm text-[#2A2520]/60 max-w-md mx-auto mb-12">
+        <p className="scroll-reveal font-sans-clean text-sm text-[#2A2520]/72 max-w-md mx-auto mb-12">
           Để lại thông tin để nhận tư vấn lộ trình đào tạo, tinh tế hóa hơi thở và thử âm miễn phí trực tiếp cùng Nghệ sĩ Lê Duy Mạnh.
         </p>
 
@@ -1059,7 +1111,7 @@ export function ContactSection({ formData, formSubmitted, onFormChange, onSubmit
             <button
               type="button"
               onClick={onReset}
-              className="mt-4 px-6 py-2.5 rounded-full border border-[#AF8C43] text-xs uppercase font-bold tracked-sm text-[#AF8C43] hover:bg-[#AF8C43] hover:text-white transition-all"
+              className="focus-ring mt-4 inline-flex min-h-11 items-center px-6 py-2.5 rounded-full border border-gold-ink text-xs uppercase font-bold tracked-sm text-gold-ink hover:bg-gold-ink hover:text-white transition-all"
             >
               Gửi lại đăng ký mới
             </button>
@@ -1067,39 +1119,46 @@ export function ContactSection({ formData, formSubmitted, onFormChange, onSubmit
         ) : (
           <form
             onSubmit={onSubmit}
+            noValidate
             className="max-w-3xl mx-auto bg-[#FFFDF9] p-6 sm:p-8 lg:p-10 border border-[#BF9B30]/20 shadow-[var(--shadow-soft)] space-y-6 rounded-[1.2rem]"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
               <label className="text-left space-y-2">
-                <span className="text-[10px] uppercase font-sans-clean text-[#9A7C30] font-bold tracked-sm">Họ và tên của bạn</span>
+                <span className="ui-label tracked-sm">Họ và tên của bạn</span>
                 <input
                   type="text"
                   required
                   placeholder="Nguyễn Văn A"
                   value={formData.name}
-                  onChange={(event) => onFormChange({ ...formData, name: event.target.value })}
-                  className={fieldClassName}
+                  onChange={(event) => onFormFieldChange('name', event.target.value)}
+                  aria-invalid={Boolean(formErrors.name)}
+                  aria-describedby={formErrors.name ? errorId('name') : undefined}
+                  className={getFieldClassName(Boolean(formErrors.name))}
                 />
+                {formErrors.name ? <span id={errorId('name')} className="form-error">{formErrors.name}</span> : null}
               </label>
 
               <label className="text-left space-y-2">
-                <span className="text-[10px] uppercase font-sans-clean text-[#9A7C30] font-bold tracked-sm">Số điện thoại liên hệ</span>
+                <span className="ui-label tracked-sm">Số điện thoại liên hệ</span>
                 <input
                   type="tel"
                   required
                   placeholder="0912 345 678"
                   value={formData.phone}
-                  onChange={(event) => onFormChange({ ...formData, phone: event.target.value })}
-                  className={fieldClassName}
+                  onChange={(event) => onFormFieldChange('phone', event.target.value)}
+                  aria-invalid={Boolean(formErrors.phone)}
+                  aria-describedby={formErrors.phone ? errorId('phone') : undefined}
+                  className={getFieldClassName(Boolean(formErrors.phone))}
                 />
+                {formErrors.phone ? <span id={errorId('phone')} className="form-error">{formErrors.phone}</span> : null}
               </label>
 
               <label className="text-left space-y-2">
-                <span className="text-[10px] uppercase font-sans-clean text-[#9A7C30] font-bold tracked-sm">Khóa học bạn quan tâm</span>
+                <span className="ui-label tracked-sm">Khóa học bạn quan tâm</span>
                 <select
                   value={formData.course}
-                  onChange={(event) => onFormChange({ ...formData, course: event.target.value })}
-                  className={fieldClassName}
+                  onChange={(event) => onFormFieldChange('course', event.target.value)}
+                  className={getFieldClassName()}
                 >
                   <option value="Beginner">BEGINNER (Cơ bản)</option>
                   <option value="Intermediate">INTERMEDIATE (Trung cấp)</option>
@@ -1108,13 +1167,13 @@ export function ContactSection({ formData, formSubmitted, onFormChange, onSubmit
               </label>
 
               <label className="text-left space-y-2">
-                <span className="text-[10px] uppercase font-sans-clean text-[#9A7C30] font-bold tracked-sm">Ghi chú</span>
+                <span className="ui-label tracked-sm">Ghi chú</span>
                 <input
                   type="text"
                   placeholder="Ví dụ: Chưa có kèn, muốn chơi nhạc Trịnh"
                   value={formData.note}
-                  onChange={(event) => onFormChange({ ...formData, note: event.target.value })}
-                  className={fieldClassName}
+                  onChange={(event) => onFormFieldChange('note', event.target.value)}
+                  className={getFieldClassName()}
                 />
               </label>
             </div>
@@ -1122,9 +1181,11 @@ export function ContactSection({ formData, formSubmitted, onFormChange, onSubmit
             <div className="pt-2">
               <button
                 type="submit"
-                className="btn-luxury w-full md:w-auto px-10 sm:px-12 py-4 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] text-white text-xs font-bold uppercase tracked-sm font-sans-clean shadow-[0_12px_30px_rgba(191,155,48,0.30)] hover:shadow-[0_16px_40px_rgba(191,155,48,0.45)] hover:-translate-y-0.5 transition-all"
+                disabled={isSubmitting}
+                className="btn-luxury focus-ring inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-10 py-4 font-sans-clean text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(191,155,48,0.45)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 sm:px-12 md:w-auto"
               >
-                Xác nhận gửi thông tin
+                {isSubmitting ? <LoaderCircle size={15} className="animate-spin" /> : null}
+                {isSubmitting ? 'Đang gửi thông tin' : 'Xác nhận gửi thông tin'}
               </button>
             </div>
           </form>
@@ -1145,14 +1206,14 @@ export function Footer({ onNavigate }: FooterProps) {
       <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-9 sm:gap-10 lg:gap-12 mb-10 sm:mb-12">
         <div className="space-y-4">
           <h3 className="font-serif-lux text-xl text-[#AF8C43] font-semibold">LÊ DUY MẠNH</h3>
-          <p className="font-sans-clean text-[11px] text-[#2A2520]/50 uppercase font-bold tracked-sm">Saxophone soloist</p>
+          <p className="font-sans-clean text-[11px] text-[#2A2520]/72 uppercase font-bold tracked-sm">Saxophone soloist</p>
           <p className="font-sans-clean text-xs text-[#2A2520]/70 leading-relaxed font-light">
             Người truyền cảm hứng và tinh thần tự do phóng khoáng qua phím kèn Saxophone. Đồng hành cùng bạn trên chặng đường chinh phục tinh hoa nghệ thuật âm nhạc.
           </p>
         </div>
 
         <div className="space-y-4 text-left">
-          <h4 className="font-sans-clean text-xs uppercase text-[#9A7C30] font-bold tracked-sm">Contact information</h4>
+          <h4 className="font-sans-clean text-xs uppercase text-gold-ink font-bold tracked-sm">Contact information</h4>
           <div className="space-y-3 font-sans-clean text-xs text-[#2A2520]/70 font-light">
             <p className="flex items-center gap-2"><Mail size={14} className="text-[#AF8C43] shrink-0" /> jazzleduymanh@gmail.com</p>
             <p className="flex items-center gap-2"><Phone size={14} className="text-[#AF8C43] shrink-0" /> 0389172879</p>
@@ -1161,18 +1222,18 @@ export function Footer({ onNavigate }: FooterProps) {
         </div>
 
         <div className="space-y-4">
-          <h4 className="font-sans-clean text-xs uppercase text-[#9A7C30] font-bold tracked-sm">Quick links</h4>
+          <h4 className="font-sans-clean text-xs uppercase text-gold-ink font-bold tracked-sm">Quick links</h4>
           <ul className="space-y-2.5 font-sans-clean text-xs text-[#2A2520]/75 font-light">
-            <li><button type="button" onClick={() => onNavigate('about')} className="gold-line bg-transparent p-0 text-left hover:text-[#AF8C43] transition-colors">Về Nghệ sĩ Lê Duy Mạnh</button></li>
-            <li><button type="button" onClick={() => onNavigate('performances')} className="gold-line bg-transparent p-0 text-left hover:text-[#AF8C43] transition-colors">Biểu diễn &amp; video</button></li>
-            <li><button type="button" onClick={() => onNavigate('academy')} className="gold-line bg-transparent p-0 text-left hover:text-[#AF8C43] transition-colors">Khóa học &amp; workshop</button></li>
-            <li><button type="button" onClick={() => onNavigate('contact')} className="gold-line bg-transparent p-0 text-left hover:text-[#AF8C43] transition-colors">Tư vấn lộ trình</button></li>
+            <li><button type="button" onClick={() => onNavigate('about')} className="focus-ring gold-line inline-flex min-h-11 items-center rounded-lg bg-transparent p-0 text-left hover:text-gold-ink transition-colors">Về Nghệ sĩ Lê Duy Mạnh</button></li>
+            <li><button type="button" onClick={() => onNavigate('performances')} className="focus-ring gold-line inline-flex min-h-11 items-center rounded-lg bg-transparent p-0 text-left hover:text-gold-ink transition-colors">Biểu diễn &amp; video</button></li>
+            <li><button type="button" onClick={() => onNavigate('academy')} className="focus-ring gold-line inline-flex min-h-11 items-center rounded-lg bg-transparent p-0 text-left hover:text-gold-ink transition-colors">Khóa học &amp; workshop</button></li>
+            <li><button type="button" onClick={() => onNavigate('contact')} className="focus-ring gold-line inline-flex min-h-11 items-center rounded-lg bg-transparent p-0 text-left hover:text-gold-ink transition-colors">Tư vấn lộ trình</button></li>
           </ul>
         </div>
 
         <div className="space-y-4">
-          <h4 className="font-sans-clean text-xs uppercase text-[#9A7C30] font-bold tracked-sm">Join community</h4>
-          <p className="font-sans-clean text-xs text-[#2A2520]/65 font-light leading-relaxed">
+          <h4 className="font-sans-clean text-xs uppercase text-gold-ink font-bold tracked-sm">Join community</h4>
+          <p className="font-sans-clean text-xs text-[#2A2520]/72 font-light leading-relaxed">
             Theo dõi để chiêm ngưỡng những sản phẩm âm nhạc mới nhất và các lịch biểu diễn chọn lọc.
           </p>
           <div className="flex gap-3">
@@ -1183,7 +1244,7 @@ export function Footer({ onNavigate }: FooterProps) {
                 target="_blank"
                 rel="noreferrer"
                 aria-label={label}
-                className="w-9 h-9 rounded-full border border-[#BF9B30]/20 hover:border-[#AF8C43] flex items-center justify-center text-[#2A2520]/70 hover:text-[#AF8C43] transition-all bg-[#FFFDF9] shadow-[0_2px_8px_rgba(74,58,28,0.05)]"
+                className="focus-ring w-11 h-11 rounded-full border border-[#BF9B30]/20 hover:border-[#AF8C43] flex items-center justify-center text-[#2A2520]/70 hover:text-[#AF8C43] transition-all bg-[#FFFDF9] shadow-[0_2px_8px_rgba(74,58,28,0.05)]"
               >
                 <Icon size={14} />
               </a>
@@ -1192,15 +1253,10 @@ export function Footer({ onNavigate }: FooterProps) {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-12 pt-8 border-t border-[#BF9B30]/15 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-        <p className="font-sans-clean text-[11px] text-[#2A2520]/50 font-medium">
+      <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-12 pt-8 border-t border-[#BF9B30]/15 text-center">
+        <p className="font-sans-clean text-[11px] text-[#2A2520]/72 font-medium">
           &copy; {new Date().getFullYear()} LÊ DUY MẠNH SAXOPHONE. All rights reserved.
         </p>
-        <div className="flex gap-6 font-sans-clean text-[11px] text-[#2A2520]/50 font-medium">
-          <a href="#hero" className="hover:text-[#AF8C43] transition-colors">Privacy Policy</a>
-          <span className="text-[#BF9B30]/25">|</span>
-          <a href="#hero" className="hover:text-[#AF8C43] transition-colors">Terms of Service</a>
-        </div>
       </div>
     </footer>
   );

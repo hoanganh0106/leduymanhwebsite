@@ -13,6 +13,8 @@ import {
   type ContactFormData,
   type Course,
   type MediaItem,
+  type LeadFormErrors,
+  type LeadFormField,
   type SiteImages,
   type Tour,
   type Workshop,
@@ -131,6 +133,39 @@ type LeadPayload = {
   note: string;
 };
 
+const requiredFieldMessage = 'Vui lòng điền thông tin này.';
+const invalidPhoneMessage = 'Số điện thoại cần có ít nhất 9 chữ số.';
+
+const validateLeadFields = (name: string, phone: string): LeadFormErrors => {
+  const errors: LeadFormErrors = {};
+  const trimmedPhone = phone.trim();
+  const phoneDigits = trimmedPhone.replace(/\D/g, '');
+
+  if (!name.trim()) {
+    errors.name = requiredFieldMessage;
+  }
+
+  if (!trimmedPhone) {
+    errors.phone = requiredFieldMessage;
+  } else if (phoneDigits.length < 9) {
+    errors.phone = invalidPhoneMessage;
+  }
+
+  return errors;
+};
+
+const hasLeadErrors = (errors: LeadFormErrors) => Boolean(errors.name || errors.phone);
+
+const clearLeadFieldError = (errors: LeadFormErrors, field: LeadFormField, value: string) => {
+  if (!value.trim()) return errors;
+  const next = { ...errors };
+  delete next[field];
+  return next;
+};
+
+const isLeadFormField = (field: keyof ContactFormData): field is LeadFormField =>
+  field === 'name' || field === 'phone';
+
 const saveLead = async (payload: LeadPayload) => {
   try {
     const { isSupabaseConfigured, supabase } = await import('./lib/supabase');
@@ -150,6 +185,10 @@ export default function App() {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [workshopSubmitted, setWorkshopSubmitted] = useState(false);
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
+  const [contactErrors, setContactErrors] = useState<LeadFormErrors>({});
+  const [workshopErrors, setWorkshopErrors] = useState<LeadFormErrors>({});
+  const [bookingErrors, setBookingErrors] = useState<LeadFormErrors>({});
+  const [submittingLead, setSubmittingLead] = useState<LeadPayload['kind'] | null>(null);
   const [tours, setTours] = useState<Tour[]>(defaultTours);
   const [courseList, setCourseList] = useState<Course[]>(defaultCourses);
   const [workshopList, setWorkshopList] = useState<Workshop[]>(defaultWorkshops);
@@ -288,15 +327,24 @@ export default function App() {
 
   const handleFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!formData.name || !formData.phone) return;
-    await saveLead({
-      kind: 'contact',
-      name: formData.name.trim(),
-      phone: formData.phone.trim(),
-      course: formData.course,
-      note: formData.note,
-    });
-    setFormSubmitted(true);
+    const errors = validateLeadFields(formData.name, formData.phone);
+    setContactErrors(errors);
+    if (hasLeadErrors(errors)) return;
+
+    setSubmittingLead('contact');
+    try {
+      await saveLead({
+        kind: 'contact',
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        course: formData.course,
+        note: formData.note,
+      });
+      setContactErrors({});
+      setFormSubmitted(true);
+    } finally {
+      setSubmittingLead(null);
+    }
   };
 
   const handleWorkshopSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -306,15 +354,24 @@ export default function App() {
     const data = new FormData(event.currentTarget);
     const name = String(data.get('name') || '').trim();
     const phone = String(data.get('phone') || '').trim();
-    if (!name || !phone) return;
-    await saveLead({
-      kind: 'workshop',
-      name,
-      phone,
-      course: workshop.title,
-      note: '',
-    });
-    setWorkshopSubmitted(true);
+    const errors = validateLeadFields(name, phone);
+    setWorkshopErrors(errors);
+    if (hasLeadErrors(errors)) return;
+
+    setSubmittingLead('workshop');
+    try {
+      await saveLead({
+        kind: 'workshop',
+        name,
+        phone,
+        course: workshop.title,
+        note: '',
+      });
+      setWorkshopErrors({});
+      setWorkshopSubmitted(true);
+    } finally {
+      setSubmittingLead(null);
+    }
   };
 
   const handleBookingSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -322,19 +379,43 @@ export default function App() {
     const data = new FormData(event.currentTarget);
     const name = String(data.get('name') || '').trim();
     const phone = String(data.get('phone') || '').trim();
-    if (!name || !phone) return;
+    const errors = validateLeadFields(name, phone);
+    setBookingErrors(errors);
+    if (hasLeadErrors(errors)) return;
+
     const eventType = String(data.get('eventType') || '').trim();
     const date = String(data.get('date') || '').trim();
     const location = String(data.get('location') || '').trim();
     const note = String(data.get('note') || '').trim();
-    await saveLead({
-      kind: 'booking',
-      name,
-      phone,
-      course: eventType || 'Đặt lịch biểu diễn',
-      note: [date && `Ngày: ${date}`, location && `Địa điểm: ${location}`, note].filter(Boolean).join(' · '),
-    });
-    setBookingSubmitted(true);
+    setSubmittingLead('booking');
+    try {
+      await saveLead({
+        kind: 'booking',
+        name,
+        phone,
+        course: eventType || 'Đặt lịch biểu diễn',
+        note: [date && `Ngày: ${date}`, location && `Địa điểm: ${location}`, note].filter(Boolean).join(' · '),
+      });
+      setBookingErrors({});
+      setBookingSubmitted(true);
+    } finally {
+      setSubmittingLead(null);
+    }
+  };
+
+  const handleContactFieldChange = (field: keyof ContactFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (isLeadFormField(field)) {
+      setContactErrors((prev) => clearLeadFieldError(prev, field, value));
+    }
+  };
+
+  const handleWorkshopFieldChange = (field: LeadFormField, value: string) => {
+    setWorkshopErrors((prev) => clearLeadFieldError(prev, field, value));
+  };
+
+  const handleBookingFieldChange = (field: LeadFormField, value: string) => {
+    setBookingErrors((prev) => clearLeadFieldError(prev, field, value));
   };
 
   const handleNavigate = (target: SiteSectionId) => {
@@ -371,6 +452,8 @@ export default function App() {
     setIsMenuOpen(false);
     setWorkshopSubmitted(false);
     setBookingSubmitted(false);
+    setWorkshopErrors({});
+    setBookingErrors({});
     window.history.pushState(null, '', buildDetailHash(route));
     setDetail(route);
   };
@@ -385,6 +468,7 @@ export default function App() {
   const resetContactForm = () => {
     setFormSubmitted(false);
     setFormData(defaultFormData);
+    setContactErrors({});
   };
 
   const isViewingDetail = detail !== null;
@@ -427,7 +511,10 @@ export default function App() {
           <WorkshopDetailPage
             workshop={workshop}
             submitted={workshopSubmitted}
+            formErrors={workshopErrors}
+            isSubmitting={submittingLead === 'workshop'}
             onSubmit={handleWorkshopSubmit}
+            onFieldChange={handleWorkshopFieldChange}
             onBack={closeDetail}
           />
         ) : (
@@ -441,7 +528,16 @@ export default function App() {
       case 'artist':
         return <ArtistDetailPage artist={artistProfile} onBack={closeDetail} onContact={() => handleOpenDetail('booking', '')} />;
       case 'booking':
-        return <BookingDetailPage submitted={bookingSubmitted} onSubmit={handleBookingSubmit} onBack={closeDetail} />;
+        return (
+          <BookingDetailPage
+            submitted={bookingSubmitted}
+            formErrors={bookingErrors}
+            isSubmitting={submittingLead === 'booking'}
+            onSubmit={handleBookingSubmit}
+            onFieldChange={handleBookingFieldChange}
+            onBack={closeDetail}
+          />
+        );
       default:
         return <DetailNotFound onBack={closeDetail} />;
     }
@@ -495,7 +591,9 @@ export default function App() {
                 <ContactSection
                   formData={formData}
                   formSubmitted={formSubmitted}
-                  onFormChange={setFormData}
+                  formErrors={contactErrors}
+                  isSubmitting={submittingLead === 'contact'}
+                  onFormFieldChange={handleContactFieldChange}
                   onSubmit={handleFormSubmit}
                   onReset={resetContactForm}
                 />

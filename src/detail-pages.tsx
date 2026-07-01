@@ -6,6 +6,7 @@ import {
   Check,
   Clock,
   GraduationCap,
+  LoaderCircle,
   MapPin,
   Music2,
   Play,
@@ -14,11 +15,17 @@ import {
   Ticket,
 } from 'lucide-react';
 import { SafeImage } from './sections';
-import type { ArtistProfile, Course, MediaItem, Tour, Workshop } from './content';
+import type { ArtistProfile, Course, LeadFormErrors, LeadFormField, MediaItem, Tour, Workshop } from './content';
 import { normalizeVideoEmbedUrl } from './lib/video-url';
 
 const fieldClassName =
-  'w-full bg-[#FBF6EC] border border-[#BF9B30]/25 text-[#2A2520] text-sm px-4 py-3 focus:outline-none focus:border-[#AF8C43] focus:ring-2 focus:ring-[#AF8C43]/15 transition-colors rounded-xl';
+  'focus-ring w-full bg-[#FBF6EC] border border-[#BF9B30]/25 text-[#2A2520] text-sm px-4 py-3 focus:border-[#AF8C43] focus:ring-2 focus:ring-[#AF8C43]/15 transition-colors rounded-xl';
+const invalidFieldClassName =
+  'border-[#B4452F]/75 focus:border-[#B4452F] focus:ring-[#B4452F]/15';
+const labelClassName = 'ui-label tracked-sm';
+
+const getFieldClassName = (hasError = false) =>
+  hasError ? `${fieldClassName} ${invalidFieldClassName}` : fieldClassName;
 
 function MetaChip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
@@ -59,7 +66,7 @@ function DetailShell({ kicker, kickerIcon, title, lede, image, hero, metaChips, 
         <button
           type="button"
           onClick={onBack}
-          className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/80 px-4 py-2 text-[11px] font-bold uppercase tracked-sm text-[#9A7C30] transition-colors hover:bg-[#F6EFDF]"
+          className="focus-ring mb-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/80 px-4 py-2 text-[11px] font-bold uppercase tracked-sm text-gold-ink transition-colors hover:bg-[#F6EFDF]"
         >
           <ArrowLeft size={14} />
           {backLabel}
@@ -92,9 +99,7 @@ function DetailShell({ kicker, kickerIcon, title, lede, image, hero, metaChips, 
 }
 
 const primaryCtaClass =
-  'btn-luxury inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-9 py-4 text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 sm:w-auto';
-const secondaryCtaClass =
-  'w-full rounded-full border border-[#BF9B30]/40 px-7 py-4 text-xs font-bold uppercase tracked-sm text-[#9A7C30] transition-all hover:bg-[#F6EFDF] sm:w-auto';
+  'btn-luxury focus-ring inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-9 py-4 text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 sm:w-auto';
 
 interface CourseDetailPageProps {
   course: Course;
@@ -148,7 +153,7 @@ export function CourseDetailPage({ course, onBack, onRegister }: CourseDetailPag
               <li key={step.label} className="flex gap-4">
                 <span className="w-10 shrink-0 font-serif-lux text-2xl leading-none text-[#AF8C43]/80">0{index + 1}</span>
                 <div>
-                  <span className="block font-sans-clean text-[11px] font-bold uppercase tracked-sm text-[#9A7C30]">{step.label}</span>
+                  <span className="block font-sans-clean text-[11px] font-bold uppercase tracked-sm text-gold-ink">{step.label}</span>
                   <p className="mt-1 font-sans-clean text-sm leading-relaxed text-[#2A2520]/78">{step.detail}</p>
                 </div>
               </li>
@@ -173,13 +178,10 @@ export function CourseDetailPage({ course, onBack, onRegister }: CourseDetailPag
         </DetailBlock>
       ) : null}
 
-      <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
+      <div className="mt-10">
         <button type="button" onClick={() => onRegister(course)} className={primaryCtaClass}>
           Đăng ký khóa học
           <ArrowRight size={15} />
-        </button>
-        <button type="button" onClick={onBack} className={secondaryCtaClass}>
-          Quay lại
         </button>
       </div>
     </DetailShell>
@@ -229,13 +231,10 @@ export function TourDetailPage({ tour, onBack, onBook }: TourDetailPageProps) {
         </DetailBlock>
       ) : null}
 
-      <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
+      <div className="mt-10">
         <button type="button" onClick={onBook} className={primaryCtaClass}>
           Mời nghệ sĩ biểu diễn
           <ArrowRight size={15} />
-        </button>
-        <button type="button" onClick={onBack} className={secondaryCtaClass}>
-          Quay lại
         </button>
       </div>
     </DetailShell>
@@ -245,11 +244,24 @@ export function TourDetailPage({ tour, onBack, onBook }: TourDetailPageProps) {
 interface WorkshopDetailPageProps {
   workshop: Workshop;
   submitted: boolean;
+  formErrors: LeadFormErrors;
+  isSubmitting: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onFieldChange: (field: LeadFormField, value: string) => void;
   onBack: () => void;
 }
 
-export function WorkshopDetailPage({ workshop, submitted, onSubmit, onBack }: WorkshopDetailPageProps) {
+export function WorkshopDetailPage({
+  workshop,
+  submitted,
+  formErrors,
+  isSubmitting,
+  onSubmit,
+  onFieldChange,
+  onBack,
+}: WorkshopDetailPageProps) {
+  const errorId = (field: LeadFormField) => `workshop-${field}-error`;
+
   return (
     <DetailShell
       kicker="Workshop"
@@ -292,20 +304,42 @@ export function WorkshopDetailPage({ workshop, submitted, onSubmit, onBack }: Wo
             <Sparkles className="mx-auto text-[#AF8C43]/70" size={18} />
           </div>
         ) : (
-          <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+          <form onSubmit={onSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1.5 text-left">
-              <span className="text-[10px] font-bold uppercase tracked-sm text-[#9A7C30]">Họ và tên</span>
-              <input required name="name" type="text" placeholder="Nguyễn Văn A" className={fieldClassName} />
+              <span className={labelClassName}>Họ và tên</span>
+              <input
+                required
+                name="name"
+                type="text"
+                placeholder="Nguyễn Văn A"
+                aria-invalid={Boolean(formErrors.name)}
+                aria-describedby={formErrors.name ? errorId('name') : undefined}
+                onChange={(event) => onFieldChange('name', event.target.value)}
+                className={getFieldClassName(Boolean(formErrors.name))}
+              />
+              {formErrors.name ? <span id={errorId('name')} className="form-error">{formErrors.name}</span> : null}
             </label>
             <label className="space-y-1.5 text-left">
-              <span className="text-[10px] font-bold uppercase tracked-sm text-[#9A7C30]">Số điện thoại</span>
-              <input required name="phone" type="tel" placeholder="0912 345 678" className={fieldClassName} />
+              <span className={labelClassName}>Số điện thoại</span>
+              <input
+                required
+                name="phone"
+                type="tel"
+                placeholder="0912 345 678"
+                aria-invalid={Boolean(formErrors.phone)}
+                aria-describedby={formErrors.phone ? errorId('phone') : undefined}
+                onChange={(event) => onFieldChange('phone', event.target.value)}
+                className={getFieldClassName(Boolean(formErrors.phone))}
+              />
+              {formErrors.phone ? <span id={errorId('phone')} className="form-error">{formErrors.phone}</span> : null}
             </label>
             <button
               type="submit"
-              className="btn-luxury inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-9 py-4 text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 sm:col-span-2"
+              disabled={isSubmitting}
+              className="btn-luxury focus-ring inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-9 py-4 text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2"
             >
-              Xác nhận giữ chỗ
+              {isSubmitting ? <LoaderCircle size={15} className="animate-spin" /> : null}
+              {isSubmitting ? 'Đang giữ chỗ' : 'Xác nhận giữ chỗ'}
               <ArrowRight size={15} />
             </button>
           </form>
@@ -387,7 +421,7 @@ export function ArtistDetailPage({ artist, onBack, onContact }: ArtistDetailPage
           {artist.facts.map((fact) => (
             <div key={fact.label} className="px-3 text-center">
               <span className="block font-serif-lux text-2xl font-light text-[#AF8C43] sm:text-3xl">{fact.value}</span>
-              <span className="mt-1.5 block text-[9px] font-semibold uppercase tracked-sm text-[#2A2520]/50 sm:text-[10px]">{fact.label}</span>
+              <span className="mt-1.5 block text-[11px] font-semibold uppercase tracked-sm text-[#2A2520]/72 sm:text-[11px]">{fact.label}</span>
             </div>
           ))}
         </div>
@@ -441,12 +475,23 @@ const bookingEventTypes = [
 
 interface BookingDetailPageProps {
   submitted: boolean;
+  formErrors: LeadFormErrors;
+  isSubmitting: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onFieldChange: (field: LeadFormField, value: string) => void;
   onBack: () => void;
 }
 
-export function BookingDetailPage({ submitted, onSubmit, onBack }: BookingDetailPageProps) {
-  const labelClass = 'text-[10px] font-bold uppercase tracked-sm text-[#9A7C30]';
+export function BookingDetailPage({
+  submitted,
+  formErrors,
+  isSubmitting,
+  onSubmit,
+  onFieldChange,
+  onBack,
+}: BookingDetailPageProps) {
+  const errorId = (field: LeadFormField) => `booking-${field}-error`;
+
   return (
     <DetailShell
       kicker="Đặt lịch biểu diễn"
@@ -466,18 +511,38 @@ export function BookingDetailPage({ submitted, onSubmit, onBack }: BookingDetail
           <Sparkles className="mx-auto text-[#AF8C43]/70" size={18} />
         </div>
       ) : (
-        <form onSubmit={onSubmit} className="grid gap-5 sm:grid-cols-2">
+        <form onSubmit={onSubmit} noValidate className="grid gap-5 sm:grid-cols-2">
           <label className="space-y-1.5 text-left">
-            <span className={labelClass}>Họ và tên</span>
-            <input required name="name" type="text" placeholder="Nguyễn Văn A" className={fieldClassName} />
+            <span className={labelClassName}>Họ và tên</span>
+            <input
+              required
+              name="name"
+              type="text"
+              placeholder="Nguyễn Văn A"
+              aria-invalid={Boolean(formErrors.name)}
+              aria-describedby={formErrors.name ? errorId('name') : undefined}
+              onChange={(event) => onFieldChange('name', event.target.value)}
+              className={getFieldClassName(Boolean(formErrors.name))}
+            />
+            {formErrors.name ? <span id={errorId('name')} className="form-error">{formErrors.name}</span> : null}
           </label>
           <label className="space-y-1.5 text-left">
-            <span className={labelClass}>Số điện thoại</span>
-            <input required name="phone" type="tel" placeholder="0912 345 678" className={fieldClassName} />
+            <span className={labelClassName}>Số điện thoại</span>
+            <input
+              required
+              name="phone"
+              type="tel"
+              placeholder="0912 345 678"
+              aria-invalid={Boolean(formErrors.phone)}
+              aria-describedby={formErrors.phone ? errorId('phone') : undefined}
+              onChange={(event) => onFieldChange('phone', event.target.value)}
+              className={getFieldClassName(Boolean(formErrors.phone))}
+            />
+            {formErrors.phone ? <span id={errorId('phone')} className="form-error">{formErrors.phone}</span> : null}
           </label>
           <label className="space-y-1.5 text-left sm:col-span-2">
-            <span className={labelClass}>Loại sự kiện</span>
-            <select name="eventType" defaultValue={bookingEventTypes[0]} className={fieldClassName}>
+            <span className={labelClassName}>Loại sự kiện</span>
+            <select name="eventType" defaultValue={bookingEventTypes[0]} className={getFieldClassName()}>
               {bookingEventTypes.map((type) => (
                 <option key={type} value={type}>
                   {type}
@@ -486,22 +551,24 @@ export function BookingDetailPage({ submitted, onSubmit, onBack }: BookingDetail
             </select>
           </label>
           <label className="space-y-1.5 text-left">
-            <span className={labelClass}>Ngày mong muốn</span>
-            <input name="date" type="text" placeholder="Ví dụ: 20/08/2026" className={fieldClassName} />
+            <span className={labelClassName}>Ngày mong muốn</span>
+            <input name="date" type="text" placeholder="Ví dụ: 20/08/2026" className={getFieldClassName()} />
           </label>
           <label className="space-y-1.5 text-left">
-            <span className={labelClass}>Địa điểm</span>
-            <input name="location" type="text" placeholder="Khách sạn, hội trường, thành phố…" className={fieldClassName} />
+            <span className={labelClassName}>Địa điểm</span>
+            <input name="location" type="text" placeholder="Khách sạn, hội trường, thành phố…" className={getFieldClassName()} />
           </label>
           <label className="space-y-1.5 text-left sm:col-span-2">
-            <span className={labelClass}>Ghi chú</span>
-            <textarea name="note" rows={3} placeholder="Quy mô khách, phong cách nhạc mong muốn, thời lượng…" className={`${fieldClassName} resize-y`} />
+            <span className={labelClassName}>Ghi chú</span>
+            <textarea name="note" rows={3} placeholder="Quy mô khách, phong cách nhạc mong muốn, thời lượng…" className={`${getFieldClassName()} resize-y`} />
           </label>
           <button
             type="submit"
-            className="btn-luxury inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-9 py-4 text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 sm:col-span-2"
+            disabled={isSubmitting}
+            className="btn-luxury focus-ring inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] via-[#DFBD69] to-[#BF9B30] px-9 py-4 text-xs font-bold uppercase tracked-sm text-white shadow-[0_12px_30px_rgba(191,155,48,0.30)] transition-all hover:-translate-y-0.5 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2"
           >
-            Gửi yêu cầu đặt lịch
+            {isSubmitting ? <LoaderCircle size={15} className="animate-spin" /> : null}
+            {isSubmitting ? 'Đang gửi yêu cầu' : 'Gửi yêu cầu đặt lịch'}
             <ArrowRight size={15} />
           </button>
         </form>
@@ -517,11 +584,11 @@ export function DetailNotFound({ onBack }: { onBack: () => void }) {
       <div className="mx-auto max-w-xl rounded-[1.2rem] border border-[#BF9B30]/20 bg-[#FFFDF9] p-8 shadow-[var(--shadow-card)]">
         <span className="section-kicker justify-center">Chi tiết</span>
         <h1 className="mt-4 font-serif-lux text-3xl text-[#211D18]">Không tìm thấy nội dung</h1>
-        <p className="mt-3 font-sans-clean text-sm text-[#2A2520]/65">Mục bạn tìm có thể đã được cập nhật hoặc gỡ bỏ.</p>
+        <p className="mt-3 font-sans-clean text-sm text-[#2A2520]/72">Mục bạn tìm có thể đã được cập nhật hoặc gỡ bỏ.</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-7 inline-flex items-center gap-2 rounded-full border border-[#BF9B30]/45 px-5 py-3 text-[11px] font-bold uppercase tracked-sm text-[#9A7C30] transition-colors hover:bg-[#F6EFDF]"
+          className="focus-ring mt-7 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/45 px-5 py-3 text-[11px] font-bold uppercase tracked-sm text-gold-ink transition-colors hover:bg-[#F6EFDF]"
         >
           <ArrowLeft size={14} />
           Quay lại
