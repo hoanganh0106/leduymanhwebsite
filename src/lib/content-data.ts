@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import {
+  artistProfile,
   blogPosts as defaultPosts,
   courses as defaultCourses,
   defaultAboutImage,
@@ -8,7 +9,7 @@ import {
   recentTours as defaultTours,
   workshops as defaultWorkshops,
 } from '../content';
-import type { BlogPost, Course, MediaItem, SiteImages, Tour, Workshop } from '../content';
+import type { BlogPost, Course, MediaItem, Milestone, Photo, SiteImages, Tour, Workshop } from '../content';
 import { normalizeVideoEmbedUrl } from './video-url';
 
 /**
@@ -29,6 +30,28 @@ export async function fetchWorkshops(): Promise<Workshop[]> {
   const { data, error } = await supabase.from('workshops').select('*').order('sort_order', { ascending: true });
   if (error || !data || data.length === 0) return defaultWorkshops;
   return data as unknown as Workshop[];
+}
+
+export async function fetchMilestones(): Promise<Milestone[]> {
+  const defaults = artistProfile.milestones;
+  if (!isSupabaseConfigured || !supabase) return defaults;
+  const { data, error } = await supabase.from('milestones').select('*').order('sort_order', { ascending: true });
+  if (error || !data || data.length === 0) return defaults;
+  return (data as Array<Record<string, unknown>>).map((item, index) => {
+    const stringField = (key: string, fallback = '') => (typeof item[key] === 'string' ? item[key] : fallback);
+    const images = Array.isArray(item.images)
+      ? item.images.filter((image): image is string => typeof image === 'string' && Boolean(image))
+      : typeof item.image === 'string' && item.image
+        ? [item.image]
+        : [];
+
+    return {
+      year: stringField('year', defaults[index]?.year || ''),
+      title: stringField('title', defaults[index]?.title || ''),
+      detail: stringField('detail', defaults[index]?.detail || ''),
+      images,
+    };
+  });
 }
 
 export async function fetchCourses(): Promise<Course[]> {
@@ -65,6 +88,19 @@ export async function fetchMedia(): Promise<MediaItem[]> {
     thumbnail: item.thumbnail || defaultMedia[index]?.thumbnail || '',
     videoUrl: normalizeVideoEmbedUrl(item.video_url || defaultMedia[index]?.videoUrl || ''),
   }));
+}
+
+export async function fetchPhotos(): Promise<Photo[]> {
+  if (!isSupabaseConfigured || !supabase) return [];
+  const { data, error } = await supabase.from('photos').select('id,caption,image').order('sort_order', { ascending: true });
+  if (error || !data || data.length === 0) return [];
+  return (data as Array<Record<string, string>>)
+    .map((photo) => ({
+      id: photo.id,
+      caption: photo.caption || '',
+      image: photo.image || '',
+    }))
+    .filter((photo) => Boolean(photo.id && photo.image));
 }
 
 export async function fetchSiteImages(): Promise<SiteImages> {

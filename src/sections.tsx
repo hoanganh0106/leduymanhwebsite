@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ImgHTMLAttributes, type MouseEvent, type RefObject, type SVGProps } from 'react';
+import { useRef, type FormEvent, type MouseEvent, type RefObject, type SVGProps } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,19 +20,23 @@ import {
   X,
 } from 'lucide-react';
 import {
-  defaultAboutImage,
-  defaultHeroImage,
   type BlogPost,
   type ContactFormData,
   type Course,
   type LeadFormField,
   type LeadFormErrors,
   type MediaItem,
+  type Photo,
   type Tour,
   type Workshop,
 } from './content';
+import { Lightbox, type LightboxImage } from './lightbox';
+import { useLightbox } from './use-lightbox';
 import { KIND_TO_SEGMENT } from './navigation';
 import type { ContentSectionId, ContentTab, OpenDetail, SiteSectionId } from './navigation';
+import { SafeImage } from './safe-image';
+
+export { SafeImage } from './safe-image';
 
 interface BrandIconProps extends SVGProps<SVGSVGElement> {
   size?: number | string;
@@ -94,77 +98,6 @@ const socialLinks = [
   { href: 'https://www.youtube.com/@mrduymanhsax', label: 'YouTube', Icon: Youtube },
   { href: 'https://www.instagram.com/manhsax/', label: 'Instagram', Icon: Instagram },
 ];
-
-const fallbackImageClass =
-  'flex items-center justify-center bg-[linear-gradient(135deg,#EFE6D6,#FBF6EC)] text-[#AF8C43]';
-const responsiveImageWidths = [480, 768, 1024, 1360, 1680];
-const defaultResponsiveImageSizes = '(min-width: 1280px) 46vw, (min-width: 768px) 70vw, 100vw';
-
-const buildOptimizedImageUrl = (source: string, width: number) => {
-  try {
-    const url = new URL(source);
-    if (!url.hostname.includes('images.unsplash.com')) return null;
-    url.searchParams.set('auto', 'format');
-    url.searchParams.set('fit', url.searchParams.get('fit') || 'crop');
-    url.searchParams.set('q', url.searchParams.get('q') || '80');
-    url.searchParams.set('w', String(width));
-    return url.toString();
-  } catch {
-    return null;
-  }
-};
-
-const getResponsiveImageAttributes = (source?: string, srcSet?: string, sizes?: string) => {
-  if (!source || srcSet) return { src: source, srcSet, sizes };
-  const optimizedUrls = responsiveImageWidths
-    .map((width) => {
-      const url = buildOptimizedImageUrl(source, width);
-      return url ? `${url} ${width}w` : null;
-    })
-    .filter(Boolean)
-    .join(', ');
-
-  if (!optimizedUrls) return { src: source, srcSet, sizes };
-
-  return {
-    src: buildOptimizedImageUrl(source, 1024) ?? source,
-    srcSet: optimizedUrls,
-    sizes: sizes ?? defaultResponsiveImageSizes,
-  };
-};
-
-interface SafeImageProps extends ImgHTMLAttributes<HTMLImageElement> {
-  fallbackClassName?: string;
-}
-
-export function SafeImage({ src, alt = '', className = '', fallbackClassName = '', onError, srcSet, sizes, ...props }: SafeImageProps) {
-  const [failed, setFailed] = useState(!src);
-  const responsiveImage = getResponsiveImageAttributes(src, srcSet, sizes);
-
-  if (failed) {
-    return (
-      <div role={alt ? 'img' : undefined} aria-label={alt || undefined} className={`${className} ${fallbackImageClass} ${fallbackClassName}`}>
-        <Music2 size={24} />
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={responsiveImage.src}
-      srcSet={responsiveImage.srcSet}
-      sizes={responsiveImage.sizes}
-      alt={alt}
-      className={className}
-      referrerPolicy="no-referrer"
-      onError={(event) => {
-        setFailed(true);
-        onError?.(event);
-      }}
-      {...props}
-    />
-  );
-}
 
 const getPostSlug = (post: BlogPost, index: number) => post.slug || post.id || `post-${index + 1}`;
 const getPostExcerpt = (post: BlogPost) => post.excerpt || post.desc || post.content?.split(/\n\s*\n/)[0] || '';
@@ -491,10 +424,11 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
               <div aria-hidden="true" className="absolute -inset-2 sm:-inset-3 rounded-[1.2rem] sm:rounded-[1.6rem] bg-[radial-gradient(circle,rgba(223,189,105,0.18),transparent_70%)] blur-xl" />
               <div className="relative aspect-[16/9] sm:aspect-[4/5] overflow-hidden rounded-[1.05rem] sm:rounded-[1.4rem] shadow-[var(--shadow-soft)]">
                 <SafeImage
-                  src={heroImage || defaultHeroImage}
+                  src={heroImage}
                   alt="Nghệ sĩ saxophone Lê Duy Mạnh"
                   decoding="async"
                   fetchPriority="high"
+                  placeholder="shimmer"
                   className="w-full h-full object-cover object-[center_35%]"
                 />
                 <div aria-hidden="true" className="absolute inset-0 rounded-[1.05rem] sm:rounded-[1.4rem] ring-1 ring-inset ring-white/40" />
@@ -521,28 +455,30 @@ export function HeroSection({ heroRef, heroContentRef, heroImage, onNavigate }: 
         </div>
       </div>
 
-      <a
-        href="#about"
-        onClick={(event) => {
-          event.preventDefault();
-          onNavigate('about');
-        }}
-        aria-label="Cuộn xuống phần giới thiệu"
-        className="focus-ring absolute bottom-5 left-1/2 z-20 -translate-x-1/2 hidden sm:flex h-11 w-11 items-start justify-center rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/50 p-2"
-      >
-        <span className="h-2 w-1 rounded-full bg-[#BF9B30] animate-scroll-cue" />
-      </a>
     </section>
   );
 }
 
 interface AboutSectionProps {
   aboutImage: string;
+  photos: Photo[];
   onNavigate: (target: ContentSectionId) => void;
   onViewBio: () => void;
+  onViewGallery: () => void;
 }
 
-export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSectionProps) {
+export function AboutSection({ aboutImage, photos, onNavigate, onViewBio, onViewGallery }: AboutSectionProps) {
+  const stripPhotos = photos.filter((photo) => photo.image).slice(0, 8);
+  const lightboxImages: LightboxImage[] = stripPhotos.map((photo) => ({ src: photo.image, caption: photo.caption }));
+  const { openIndex: openPhotoIndex, setOpenIndex: setOpenPhotoIndex, open: openPhoto, close: closePhoto, registerTrigger } = useLightbox();
+  const stripRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollStrip = (direction: -1 | 1) => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    strip.scrollBy({ left: direction * strip.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
   return (
     <section id="about" className="relative bg-gradient-to-b from-[#FBF9F4] via-[#F7F1E5] to-[#FBF9F4] text-[#2A2520] py-16 lg:py-28 overflow-hidden">
       <div aria-hidden="true" className="section-rule" />
@@ -551,10 +487,11 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
           <div className="absolute -top-4 -left-4 w-full h-full border border-[#BF9B30]/40 rounded-[1.2rem] transition-transform duration-700 group-hover:translate-x-2 group-hover:translate-y-2 pointer-events-none" />
           <div className="relative aspect-[4/5] overflow-hidden bg-[#EFE6D6] shadow-[var(--shadow-soft)] rounded-[1.2rem]">
             <SafeImage
-              src={aboutImage || defaultAboutImage}
+              src={aboutImage}
               alt="Chân dung nghệ sĩ saxophone"
               loading="lazy"
               decoding="async"
+              placeholder="shimmer"
               className="w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-105"
             />
             <div aria-hidden="true" className="absolute inset-0 rounded-[1.2rem] ring-1 ring-inset ring-white/40" />
@@ -577,14 +514,17 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
             Âm sắc saxophone đẹp không đến từ kỹ thuật phô diễn, mà từ cách người nghệ sĩ kiểm soát hơi thở, khoảng lặng và cảm xúc.
           </p>
           <p className="font-sans-clean text-sm sm:text-base text-[#2A2520]/70 leading-relaxed max-w-2xl">
-            Lê Duy Mạnh theo đuổi phong cách biểu diễn giàu cảm xúc, lịch thiệp và gần gũi. Trên sân khấu, anh tập trung vào màu âm mượt, câu nhạc có chiều sâu và sự giao tiếp tự nhiên với khán giả. Trong đào tạo, mỗi học viên được dẫn dắt bằng nền tảng hơi thở, tone, nhạc cảm và phong thái biểu diễn.
+            Lê Duy Mạnh là một trong những nghệ sĩ saxophone nổi bật của Việt Nam, hiện là giảng viên kèn Saxophone Jazz tại Học viện Âm nhạc Quốc gia Việt Nam. Từ nền tảng khí nhạc năm 1999 đến hành trình chuyên sâu saxophone từ năm 2004, anh trở thành Thạc sĩ Saxophone đầu tiên tại Việt Nam vào năm 2015.
+          </p>
+          <p className="font-sans-clean text-sm sm:text-base text-[#2A2520]/70 leading-relaxed max-w-2xl">
+            Trên sân khấu, anh tập trung vào màu âm mượt, câu nhạc có chiều sâu và sự giao tiếp tự nhiên với khán giả; trong đào tạo, mỗi học viên được dẫn dắt bằng nền tảng hơi thở, tone, nhạc cảm và phong thái biểu diễn.
           </p>
 
           <div className="grid grid-cols-3 max-w-xl divide-x divide-[#BF9B30]/20">
             {[
               ['20+', 'năm gắn bó'],
               ['300+', 'học viên'],
-              ['100+', 'đêm diễn'],
+              ['2015', 'Thạc sĩ Saxophone'],
             ].map(([number, label]) => (
               <div key={label} className="px-3 sm:px-6 first:pl-0 text-center sm:text-left">
                 <span className="block font-serif-lux text-3xl sm:text-4xl font-light text-[#AF8C43]">{number}</span>
@@ -621,6 +561,96 @@ export function AboutSection({ aboutImage, onNavigate, onViewBio }: AboutSection
             </div>
           </div>
         </div>
+
+        {stripPhotos.length > 0 && (
+          <div className="lg:col-span-12 scroll-reveal">
+            <div className="mt-2 border-t border-[#BF9B30]/18 pt-10 sm:pt-12">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-3">
+                  <span className="section-kicker">
+                    <span className="h-px w-8 bg-[#BF9B30]" />
+                    Khoảnh khắc
+                  </span>
+                  <p className="max-w-2xl font-sans-clean text-sm leading-relaxed text-[#2A2520]/72 sm:text-base">
+                    Những lát cắt đời thường, hậu trường và kỷ niệm nhỏ bên cạnh sân khấu.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onViewGallery}
+                  className="focus-ring group inline-flex min-h-11 items-center gap-2 self-start rounded-full border border-[#BF9B30]/45 bg-[#FFFDF9]/60 px-6 py-3 font-sans-clean text-[11px] font-bold uppercase tracked-sm text-[#2A2520] transition-all duration-300 hover:border-[#BF9B30] hover:bg-[#FFFDF9] hover:text-gold-ink sm:self-auto"
+                >
+                  Xem thư viện ảnh
+                  <ArrowRight size={16} className="text-[#AF8C43] transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+
+              <div className="relative">
+                <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-[#FBF9F4] to-transparent" />
+                <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-[#FBF9F4] to-transparent" />
+                {stripPhotos.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => scrollStrip(-1)}
+                      aria-label="Xem ảnh trước"
+                      className="focus-ring absolute left-1 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-[#BF9B30]/40 bg-[#FFFDF9]/90 text-[#AF8C43] shadow-[var(--shadow-card)] transition-colors hover:bg-[#FFFDF9] hover:text-gold-ink lg:grid"
+                    >
+                      <ArrowLeft size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollStrip(1)}
+                      aria-label="Xem ảnh tiếp theo"
+                      className="focus-ring absolute right-1 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-[#BF9B30]/40 bg-[#FFFDF9]/90 text-[#AF8C43] shadow-[var(--shadow-card)] transition-colors hover:bg-[#FFFDF9] hover:text-gold-ink lg:grid"
+                    >
+                      <ArrowRight size={17} />
+                    </button>
+                  </>
+                )}
+                <div
+                  ref={stripRef}
+                  className="flex snap-x snap-mandatory gap-3 overflow-x-auto rounded-xl border border-[#BF9B30]/20 bg-[#FFFDF9]/55 p-3 [scrollbar-width:thin] sm:gap-4"
+                >
+                  {stripPhotos.map((photo, index) => (
+                    <button
+                      key={photo.id}
+                      ref={registerTrigger(index)}
+                      type="button"
+                      onClick={() => openPhoto(index)}
+                      className="focus-ring group relative h-44 shrink-0 snap-center overflow-hidden rounded-xl border border-[#BF9B30]/20 bg-[#EFE6D6] cursor-zoom-in sm:h-56"
+                      aria-label={`Mở ảnh ${index + 1}${photo.caption ? `: ${photo.caption}` : ''}`}
+                    >
+                      <SafeImage
+                        src={photo.image}
+                        alt={photo.caption || 'Khoảnh khắc đời thường của nghệ sĩ saxophone'}
+                        loading="lazy"
+                        decoding="async"
+                        sizes="(min-width: 1024px) 360px, 70vw"
+                        className="h-full w-auto max-w-none object-contain transition-transform duration-500 group-hover:scale-[1.03]"
+                      />
+                      {photo.caption ? (
+                        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#211D18]/72 to-transparent px-3 pb-3 pt-8 text-left font-sans-clean text-xs leading-snug text-[#FFFDF9] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          {photo.caption}
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {openPhotoIndex !== null && (
+              <Lightbox
+                images={lightboxImages}
+                title="Khoảnh khắc"
+                index={openPhotoIndex}
+                onIndexChange={setOpenPhotoIndex}
+                onClose={closePhoto}
+              />
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

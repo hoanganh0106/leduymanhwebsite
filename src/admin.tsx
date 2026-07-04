@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Crop,
   LogOut,
@@ -24,7 +26,7 @@ import { defaultAboutImage, defaultHeroImage } from './content';
 /* Resource definitions — add a field here and it shows up in the form */
 /* ------------------------------------------------------------------ */
 
-type FieldType = 'text' | 'textarea' | 'image';
+type FieldType = 'text' | 'textarea' | 'image' | 'gallery';
 interface FieldDef {
   key: string;
   label: string;
@@ -42,7 +44,13 @@ interface ResourceDef {
   fields: FieldDef[];
 }
 
-type Row = { id: string; sort_order: number } & Record<string, string | number | null>;
+type Row = { id: string; sort_order: number } & Record<string, string | number | string[] | null>;
+type PhotoRow = {
+  id: string;
+  caption: string;
+  image: string;
+  sort_order: number;
+};
 
 const resources: ResourceDef[] = [
   {
@@ -56,6 +64,17 @@ const resources: ResourceDef[] = [
       { key: 'title', label: 'Tiêu đề', placeholder: 'Đêm nhạc "Hơi Thở Mùa Hạ"' },
       { key: 'location', label: 'Địa điểm', placeholder: 'Nhà hát Lớn Hà Nội' },
       { key: 'role', label: 'Vai trò', placeholder: 'Nghệ sĩ độc tấu khách mời' },
+    ],
+  },
+  {
+    table: 'milestones',
+    label: 'Dấu mốc',
+    titleKey: 'title',
+    fields: [
+      { key: 'year', label: 'Năm', placeholder: '2017' },
+      { key: 'title', label: 'Tiêu đề', placeholder: 'Album đầu tay "Em"' },
+      { key: 'detail', label: 'Mô tả', type: 'textarea', rows: 3, placeholder: 'Ra mắt MV "Mùa Thu Cho Em"...' },
+      { key: 'images', label: 'Ảnh dấu mốc', type: 'gallery', imageAspect: 16 / 9 },
     ],
   },
   {
@@ -166,6 +185,27 @@ async function cropToBlob(imageSrc: string, area: Area): Promise<Blob> {
   });
 }
 
+function getImageFileError(file: File | null | undefined) {
+  if (!file) return '';
+  if (!file.type.startsWith('image/')) return 'Vui lòng chọn tệp ảnh.';
+  if (file.size > 10 * 1024 * 1024) return 'Ảnh gốc nên nhỏ hơn 10MB.';
+  if (!isSupabaseConfigured || !supabase) return 'Cần kết nối Supabase để lưu ảnh.';
+  return '';
+}
+
+async function uploadImageBlob(blob: Blob): Promise<string> {
+  if (!supabase) throw new Error('Chưa kết nối Supabase.');
+  const path = `${Date.now()}-crop.jpg`;
+  const { error: uploadError } = await supabase.storage.from('site-images').upload(path, blob, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: 'image/jpeg',
+  });
+  if (uploadError) throw new Error(`Lỗi tải ảnh: ${uploadError.message}`);
+  const { data } = supabase.storage.from('site-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 function ImageCropperModal({
   file,
   initialAspect,
@@ -177,7 +217,7 @@ function ImageCropperModal({
   onCancel: () => void;
   onConfirm: (blob: Blob) => Promise<void>;
 }) {
-  const [imageSrc] = useState(() => URL.createObjectURL(file));
+  const [imageSrc, setImageSrc] = useState('');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [aspect, setAspect] = useState(initialAspect);
@@ -185,7 +225,17 @@ function ImageCropperModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => () => URL.revokeObjectURL(imageSrc), [imageSrc]);
+  // Create the preview URL in an effect (not useState) so StrictMode's
+  // mount → cleanup → remount cycle recreates it instead of leaving a revoked
+  // URL behind; keying on `file` also refreshes it for each queued upload.
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    // One synchronous set to expose the fresh URL; revoke uses the local `url`
+    // so StrictMode's remount recreates it instead of reusing a revoked one.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImageSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   const onCropComplete = useCallback((_area: Area, pixels: Area) => {
     setAreaPixels(pixels);
@@ -228,19 +278,21 @@ function ImageCropperModal({
         </div>
 
         <div className="relative h-[320px] w-full bg-[#211D18]">
-          <Cropper
-            image={imageSrc}
-            crop={crop}
-            zoom={zoom}
-            aspect={aspect}
-            minZoom={1}
-            maxZoom={3}
-            restrictPosition
-            showGrid
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropComplete}
-          />
+          {imageSrc && (
+            <Cropper
+              image={imageSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={aspect}
+              minZoom={1}
+              maxZoom={3}
+              restrictPosition
+              showGrid
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
+            />
+          )}
         </div>
 
         <div className="space-y-4 px-5 py-4">
@@ -327,39 +379,24 @@ function ImageField({
   const pickFile = (file: File | null | undefined) => {
     setError('');
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Vui lòng chọn tệp ảnh.');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Ảnh gốc nên nhỏ hơn 10MB.');
-      return;
-    }
-    if (!isSupabaseConfigured || !supabase) {
-      setError('Cần kết nối Supabase để lưu ảnh.');
+    const nextError = getImageFileError(file);
+    if (nextError) {
+      setError(nextError);
       return;
     }
     setCropFile(file);
   };
 
   const uploadCropped = async (blob: Blob) => {
-    if (!supabase) throw new Error('Chưa kết nối Supabase.');
     setUploading(true);
-    const path = `${Date.now()}-crop.jpg`;
-    const { error: uploadError } = await supabase.storage.from('site-images').upload(path, blob, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: 'image/jpeg',
-    });
-    if (uploadError) {
+    try {
+      const publicUrl = await uploadImageBlob(blob);
+      onChange(publicUrl);
+      setPreviewFailed(false);
+      setCropFile(null);
+    } finally {
       setUploading(false);
-      throw new Error(`Lỗi tải ảnh: ${uploadError.message}`);
     }
-    const { data } = supabase.storage.from('site-images').getPublicUrl(path);
-    onChange(data.publicUrl);
-    setPreviewFailed(false);
-    setUploading(false);
-    setCropFile(null);
   };
 
   const onDrop = (event: DragEvent<HTMLLabelElement>) => {
@@ -438,6 +475,140 @@ function ImageField({
   );
 }
 
+function GalleryField({
+  value,
+  aspect = 16 / 9,
+  onChange,
+}: {
+  value: string[];
+  aspect?: number;
+  onChange: (value: string[]) => void;
+}) {
+  const [error, setError] = useState('');
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const images = value.filter(Boolean);
+
+  const pickFile = (file: File | null | undefined) => {
+    setError('');
+    if (!file) return;
+    const nextError = getImageFileError(file);
+    if (nextError) {
+      setError(nextError);
+      return;
+    }
+    setCropFile(file);
+  };
+
+  const uploadCropped = async (blob: Blob) => {
+    setUploading(true);
+    try {
+      const publicUrl = await uploadImageBlob(blob);
+      onChange([...images, publicUrl]);
+      setCropFile(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAt = (index: number) => onChange(images.filter((_, imageIndex) => imageIndex !== index));
+
+  const moveAt = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= images.length) return;
+    const nextImages = [...images];
+    [nextImages[index], nextImages[target]] = [nextImages[target], nextImages[index]];
+    onChange(nextImages);
+  };
+
+  const onDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    pickFile(event.dataTransfer.files?.[0]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {images.map((image, index) => (
+          <div key={`${image}-${index}`} className="group relative aspect-video overflow-hidden rounded-xl border border-[#BF9B30]/20 bg-[#FBF6EC]">
+            <img
+              src={image}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={() => moveAt(index, -1)}
+                disabled={index === 0}
+                aria-label="Đưa ảnh sang trái"
+                className="grid h-7 w-7 place-items-center rounded-full border border-white/30 bg-[#211D18]/70 text-white backdrop-blur transition-colors hover:bg-[#211D18]/85 disabled:opacity-35"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveAt(index, 1)}
+                disabled={index === images.length - 1}
+                aria-label="Đưa ảnh sang phải"
+                className="grid h-7 w-7 place-items-center rounded-full border border-white/30 bg-[#211D18]/70 text-white backdrop-blur transition-colors hover:bg-[#211D18]/85 disabled:opacity-35"
+              >
+                <ChevronRight size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeAt(index)}
+                aria-label="Xóa ảnh"
+                className="grid h-7 w-7 place-items-center rounded-full border border-white/30 bg-[#B4452F]/80 text-white backdrop-blur transition-colors hover:bg-[#8f3322]"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <label
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={onDrop}
+          className="flex aspect-video cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#BF9B30]/35 bg-[#FBF6EC] px-3 text-center text-xs font-semibold text-[#2A2520]/60 transition-colors hover:border-[#AF8C43] hover:bg-[#F6EFDF]"
+        >
+          <UploadCloud size={22} className="text-[#AF8C43]" />
+          {uploading ? 'Đang tải ảnh…' : '+ Thêm ảnh'}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={uploading}
+            onChange={(event) => {
+              pickFile(event.target.files?.[0]);
+              event.target.value = '';
+            }}
+          />
+        </label>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-[#2A2520]/55">
+        Ảnh hiển thị theo thứ tự trái → phải. Tải nhiều ảnh cho một dấu mốc; đẹp nhất khoảng 1-5 ảnh.
+      </p>
+
+      {!isSupabaseConfigured && <p className="text-[11px] text-[#9A7C30]">Chưa nối Supabase</p>}
+      {error && <p className="rounded-lg border border-[#B4452F]/20 bg-[#B4452F]/5 px-3 py-2 text-xs text-[#B4452F]">{error}</p>}
+
+      {cropFile && (
+        <ImageCropperModal
+          file={cropFile}
+          initialAspect={aspect}
+          onCancel={() => setCropFile(null)}
+          onConfirm={uploadCropped}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Per-resource editor                                                 */
 /* ------------------------------------------------------------------ */
@@ -462,7 +633,7 @@ function ResourceEditor({ def }: { def: ResourceDef }) {
     void load();
   }, [load]);
 
-  const setField = (id: string, key: string, value: string) =>
+  const setField = (id: string, key: string, value: string | string[]) =>
     setRows((current) => current.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
 
   const save = async (row: Row) => {
@@ -487,9 +658,9 @@ function ResourceEditor({ def }: { def: ResourceDef }) {
     if (!supabase) return;
     // Mục mới nhận sort_order nhỏ nhất để hiện ở ĐẦU danh sách (list sắp xếp tăng dần).
     const minOrder = rows.length ? Math.min(...rows.map((row) => Number(row.sort_order) || 0)) : 0;
-    const blank: Record<string, string | number> = { sort_order: minOrder - 1 };
+    const blank: Record<string, string | number | string[]> = { sort_order: minOrder - 1 };
     def.fields.forEach((field) => {
-      blank[field.key] = '';
+      blank[field.key] = field.type === 'gallery' ? [] : '';
     });
     const { error } = await supabase.from(def.table).insert(blank);
     setStatus(error ? `Lỗi thêm: ${error.message}` : 'Đã thêm mục mới ở đầu danh sách — chỉnh sửa rồi nhấn Lưu.');
@@ -557,13 +728,24 @@ function ResourceEditor({ def }: { def: ResourceDef }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {def.fields.map((field) => {
                 const isImageField = field.type === 'image' || field.key === 'image' || field.key === 'thumbnail';
-                const isWide = field.type === 'textarea' || isImageField;
+                const isGalleryField = field.type === 'gallery';
+                const isWide = field.type === 'textarea' || isImageField || isGalleryField;
+                const fieldValue = row[field.key];
+                const galleryValue = Array.isArray(fieldValue)
+                  ? fieldValue.filter((item): item is string => typeof item === 'string')
+                  : [];
                 return (
                   <div key={field.key} className={isWide ? 'sm:col-span-2' : ''}>
                     <span className={labelClass}>{field.label}</span>
                     {isImageField ? (
                       <ImageField
                         value={String(row[field.key] ?? '')}
+                        aspect={field.imageAspect}
+                        onChange={(value) => setField(row.id, field.key, value)}
+                      />
+                    ) : isGalleryField ? (
+                      <GalleryField
+                        value={galleryValue}
                         aspect={field.imageAspect}
                         onChange={(value) => setField(row.id, field.key, value)}
                       />
@@ -701,6 +883,270 @@ function SiteImagesEditor() {
           />
         </section>
       ))}
+    </div>
+  );
+}
+
+function PhotoLibraryEditor() {
+  const [rows, setRows] = useState<PhotoRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [queue, setQueue] = useState<File[]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  // sort_order for the first image of the current batch; each image gets
+  // batchStartOrder + its position so the batch keeps its picked order and
+  // sits ahead of existing photos.
+  const [batchStartOrder, setBatchStartOrder] = useState(0);
+  const [uploading, setUploading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('photos').select('*').order('sort_order', { ascending: true });
+    setLoading(false);
+    if (error) setStatus(`Lỗi tải thư viện ảnh: ${error.message}`);
+    else setRows((data as PhotoRow[]) ?? []);
+  }, []);
+
+  useEffect(() => {
+    // load() only updates state after an awaited fetch, so there is no synchronous cascade here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
+
+  const acceptFiles = (fileList: FileList | null | undefined) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    files.forEach((file) => {
+      const nextError = getImageFileError(file);
+      if (nextError) errors.push(`${file.name}: ${nextError}`);
+      else validFiles.push(file);
+    });
+
+    if (errors.length > 0) setStatus(errors.join(' '));
+    if (validFiles.length === 0) return;
+    const minOrder = rows.length ? Math.min(...rows.map((row) => Number(row.sort_order) || 0)) : 0;
+    setBatchStartOrder(minOrder - validFiles.length);
+    setQueue(validFiles);
+    setQueueTotal(validFiles.length);
+    setUploadedCount(0);
+    setSkippedCount(0);
+    setStatus(`${validFiles.length} ảnh đang chờ cắt & tải lên.`);
+  };
+
+  const onDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    acceptFiles(event.dataTransfer.files);
+  };
+
+  const uploadCurrent = async (blob: Blob) => {
+    if (!supabase || queue.length === 0) return;
+    setUploading(true);
+    try {
+      const publicUrl = await uploadImageBlob(blob);
+      // Position of this image within the batch (0-based), so picked order is kept.
+      const position = queueTotal - queue.length;
+      const { error } = await supabase.from('photos').insert({
+        caption: '',
+        image: publicUrl,
+        sort_order: batchStartOrder + position,
+      });
+      if (error) {
+        setStatus(`Lỗi thêm ảnh: ${error.message}`);
+        return;
+      }
+
+      const nextUploaded = uploadedCount + 1;
+      const remainingQueue = queue.slice(1);
+      setUploadedCount(nextUploaded);
+      setQueue(remainingQueue);
+      setStatus(
+        remainingQueue.length > 0
+          ? `Đã tải ${nextUploaded}/${queueTotal} ảnh. Tiếp tục cắt ảnh kế tiếp.`
+          : `Hoàn tất: đã tải ${nextUploaded}/${queueTotal} ảnh${skippedCount > 0 ? `, bỏ qua ${skippedCount}` : ''}.`,
+      );
+      void load();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const skipCurrent = () => {
+    const nextSkipped = skippedCount + 1;
+    const remainingQueue = queue.slice(1);
+    setSkippedCount(nextSkipped);
+    setQueue(remainingQueue);
+    setStatus(
+      remainingQueue.length > 0
+        ? `Đã bỏ qua ảnh. Còn ${remainingQueue.length} ảnh trong hàng đợi.`
+        : `Hoàn tất: đã tải ${uploadedCount}/${queueTotal} ảnh, bỏ qua ${nextSkipped}.`,
+    );
+  };
+
+  const setCaption = (id: string, caption: string) => {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, caption } : row)));
+  };
+
+  const save = async (row: PhotoRow) => {
+    if (!supabase) return;
+    setBusyId(row.id);
+    const { error } = await supabase.from('photos').upsert(row);
+    setStatus(error ? `Lỗi lưu ảnh: ${error.message}` : 'Đã lưu chú thích ảnh ✓');
+    setBusyId(null);
+    if (!error) void load();
+  };
+
+  const remove = async (row: PhotoRow) => {
+    if (!supabase || !window.confirm('Xóa ảnh này? Hành động không thể hoàn tác.')) return;
+    setBusyId(row.id);
+    const { error } = await supabase.from('photos').delete().eq('id', row.id);
+    setStatus(error ? `Lỗi xóa ảnh: ${error.message}` : 'Đã xóa ảnh.');
+    setBusyId(null);
+    if (!error) void load();
+  };
+
+  const move = async (index: number, direction: -1 | 1) => {
+    if (!supabase) return;
+    const target = index + direction;
+    if (target < 0 || target >= rows.length) return;
+    const a = rows[index];
+    const b = rows[target];
+    await supabase.from('photos').upsert([
+      { ...a, sort_order: b.sort_order },
+      { ...b, sort_order: a.sort_order },
+    ]);
+    void load();
+  };
+
+  const currentFile = queue[0] ?? null;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-sans-clean text-sm text-[#2A2520]/60">{loading ? 'Đang tải...' : `${rows.length} ảnh`}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="inline-flex items-center gap-1.5 self-start rounded-full border border-[#BF9B30]/30 px-3.5 py-2 text-[11px] font-bold uppercase tracked-sm text-[#9A7C30] transition-colors hover:bg-[#F6EFDF] sm:self-auto"
+        >
+          <RefreshCw size={13} /> Tải lại
+        </button>
+      </div>
+
+      <label
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={onDrop}
+        className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.1rem] border border-dashed border-[#BF9B30]/35 bg-[#FFFDF9] px-5 py-8 text-center transition-colors hover:border-[#AF8C43] hover:bg-[#FBF6EC]"
+      >
+        <UploadCloud size={28} className="text-[#AF8C43]" />
+        <span className="font-serif-lux text-xl text-[#211D18]">Thêm ảnh vào thư viện</span>
+        <span className="max-w-md font-sans-clean text-xs leading-relaxed text-[#2A2520]/58">
+          Chọn nhiều ảnh cùng lúc hoặc kéo thả vào đây. Mỗi ảnh sẽ được cắt riêng trước khi tải lên.
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          disabled={uploading}
+          onChange={(event) => {
+            acceptFiles(event.target.files);
+            event.target.value = '';
+          }}
+        />
+      </label>
+
+      {status && <p className="rounded-xl border border-[#BF9B30]/25 bg-[#FBF6EC] px-4 py-2.5 text-xs text-[#2A2520]/75">{status}</p>}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((row, index) => (
+          <article key={row.id} className="overflow-hidden rounded-[1.1rem] border border-[#BF9B30]/15 bg-[#FFFDF9] shadow-[var(--shadow-card)]">
+            <div className="relative aspect-[4/5] bg-[#FBF6EC]">
+              <img
+                src={row.image}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute right-2 top-2 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => void move(index, -1)}
+                  disabled={index === 0}
+                  aria-label="Đưa ảnh lên trước"
+                  className="grid h-8 w-8 place-items-center rounded-full border border-white/35 bg-[#211D18]/70 text-white backdrop-blur transition-colors hover:bg-[#211D18]/85 disabled:opacity-35"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void move(index, 1)}
+                  disabled={index === rows.length - 1}
+                  aria-label="Đưa ảnh xuống sau"
+                  className="grid h-8 w-8 place-items-center rounded-full border border-white/35 bg-[#211D18]/70 text-white backdrop-blur transition-colors hover:bg-[#211D18]/85 disabled:opacity-35"
+                >
+                  <ChevronRight size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void remove(row)}
+                  disabled={busyId === row.id}
+                  aria-label="Xóa ảnh"
+                  className="grid h-8 w-8 place-items-center rounded-full border border-white/35 bg-[#B4452F]/85 text-white backdrop-blur transition-colors hover:bg-[#8f3322] disabled:opacity-60"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 p-4">
+              <label className="block">
+                <span className={labelClass}>Chú thích</span>
+                <input
+                  type="text"
+                  value={row.caption ?? ''}
+                  onChange={(event) => setCaption(row.id, event.target.value)}
+                  className={fieldClass}
+                  placeholder="Hậu trường, đời thường, kỷ niệm..."
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void save(row)}
+                disabled={busyId === row.id}
+                className="btn-luxury inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#BF9B30] to-[#DFBD69] px-5 py-2.5 text-[11px] font-bold uppercase tracked-sm text-white shadow-[0_8px_20px_rgba(191,155,48,0.28)] disabled:opacity-60"
+              >
+                <Save size={14} /> {busyId === row.id ? 'Đang lưu...' : 'Lưu'}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {!loading && rows.length === 0 && (
+        <p className="rounded-[1.1rem] border border-dashed border-[#BF9B30]/30 bg-[#FFFDF9] px-5 py-8 text-center text-sm text-[#2A2520]/55">
+          Chưa có ảnh cá nhân. Hãy tải ảnh đầu tiên để dải Khoảnh khắc xuất hiện trên trang Giới thiệu.
+        </p>
+      )}
+
+      {currentFile && (
+        <ImageCropperModal
+          // Remount per queued image so busy/crop/zoom state resets for each one
+          // (the modal instance is otherwise reused as the queue advances).
+          key={queueTotal - queue.length}
+          file={currentFile}
+          initialAspect={4 / 3}
+          onCancel={skipCurrent}
+          onConfirm={uploadCurrent}
+        />
+      )}
     </div>
   );
 }
@@ -942,6 +1388,11 @@ export default function Admin() {
       id: 'site-images',
       label: 'Hình ảnh trang web',
       content: <SiteImagesEditor />,
+    },
+    {
+      id: 'photos',
+      label: 'Thư viện ảnh',
+      content: <PhotoLibraryEditor />,
     },
     {
       id: 'leads',

@@ -55,6 +55,20 @@ export interface MediaItem {
   description?: string;
 }
 
+export interface Photo {
+  id: string;
+  caption?: string;
+  image: string;
+}
+
+export interface Milestone {
+  year: string;
+  title: string;
+  detail: string;
+  /* Danh sách ảnh minh họa (upload từ trang quản trị), theo thứ tự hiển thị. */
+  images?: string[];
+}
+
 export interface ArtistProfile {
   name: string;
   role: string;
@@ -62,7 +76,7 @@ export interface ArtistProfile {
   portrait: string;
   bio: string[];
   facts: { label: string; value: string }[];
-  milestones: { year: string; title: string; detail: string }[];
+  milestones: Milestone[];
   repertoire: string[];
 }
 
@@ -326,31 +340,34 @@ export const mediaItems: MediaItem[] = [
 
 export const artistProfile: ArtistProfile = {
   name: 'Lê Duy Mạnh',
-  role: 'Thạc sĩ – Giảng viên Saxophone & Nghệ sĩ biểu diễn',
+  role: 'Thạc sĩ Saxophone - Giảng viên Saxophone Jazz',
   tagline: 'Hơi thở sang trọng của Saxophone đương đại',
   portrait: defaultAboutImage,
   bio: [
-    'Lê Duy Mạnh là Thạc sĩ chuyên ngành Sư phạm biểu diễn Saxophone đầu tiên tại Việt Nam (tốt nghiệp năm 2015), hiện là giảng viên khoa Nhạc Jazz tại Học viện Âm nhạc Quốc gia Việt Nam. Anh đến với khí nhạc từ năm 1999 cùng cây kèn Cor, rồi bén duyên và theo đuổi chuyên sâu saxophone từ năm 2004.',
+    'Lê Duy Mạnh là một trong những nghệ sĩ saxophone nổi bật của Việt Nam, với hoạt động biểu diễn vươn ra nhiều sân khấu quốc tế. Anh hiện là giảng viên kèn Saxophone Jazz, khoa Jazz, Học viện Âm nhạc Quốc gia Việt Nam.',
+    'Anh bắt đầu học trung cấp tại Học viện Âm nhạc Quốc gia Việt Nam từ năm 1999 với cây kèn Cor và tốt nghiệp năm 2003. Năm 2004, anh tiếp tục theo học hệ trung cấp với saxophone, rồi lần lượt hoàn thành bậc trung cấp, đại học và trở thành Thạc sĩ Saxophone đầu tiên tại Việt Nam vào năm 2015.',
     'Anh theo đuổi phong cách Jazz kết hợp Smooth Jazz, Pop và nhạc xưa Việt Nam, hướng tới lối nghe mộc mạc, dễ cảm nhận cho khán giả. Những bản phối Jazz cho ca khúc Trịnh Công Sơn, Vũ Thành An, Lam Phương… đã làm nên dấu ấn riêng của anh. Lê Duy Mạnh cũng tham gia biểu diễn cùng Dàn nhạc Giao hưởng Quốc gia Việt Nam và Dàn nhạc Jazz Bigband Quyền Văn Minh.',
-    'Song song với biểu diễn, anh dành nhiều tâm huyết cho đào tạo. Mỗi học viên được dẫn dắt bằng nền tảng hơi thở, tone, nhạc cảm và phong thái biểu diễn — để không chỉ chơi đúng, mà còn chơi có chuyện để kể.',
+    'Song song với biểu diễn, anh dành nhiều tâm huyết cho đào tạo. Mỗi học viên được dẫn dắt bằng nền tảng hơi thở, tone, nhạc cảm và phong thái biểu diễn - để không chỉ chơi đúng, mà còn chơi có chuyện để kể.',
   ],
   facts: [
     { label: 'Năm gắn bó cây kèn', value: '20+' },
     { label: 'Đêm diễn', value: '100+' },
     { label: 'Học viên', value: '300+' },
-    { label: 'Dòng nhạc', value: 'Jazz · Pop · Nhạc Xưa' },
+    { label: 'Dòng nhạc', value: 'Jazz - Pop - Nhạc Xưa' },
   ],
   milestones: [
     { year: '1999', title: 'Bước vào con đường khí nhạc', detail: 'Bắt đầu học tại Nhạc viện Hà Nội với cây kèn Cor.' },
     { year: '2004', title: 'Bén duyên Saxophone', detail: 'Chính thức chuyển sang theo đuổi và đam mê cây kèn saxophone.' },
-    { year: '2007', title: 'Lưu diễn quốc tế đầu tiên', detail: 'Tham gia Dàn nhạc trẻ Đông Nam Á (SAYOWE) và biểu diễn tại Thái Lan.' },
     { year: '2015', title: 'Thạc sĩ Saxophone đầu tiên tại Việt Nam', detail: 'Bảo vệ thành công luận án tốt nghiệp Thạc sĩ chuyên ngành sư phạm biểu diễn Saxophone.' },
     { year: '2016', title: 'Du học Thụy Điển', detail: 'Nhận học bổng toàn phần của chính phủ tại Học viện Âm nhạc Malmö (Thụy Điển), chuyên ngành Saxophone Jazz.' },
-    { year: '2017', title: 'Album đầu tay “Em”', detail: 'Ra mắt CD gồm 9 tình khúc nhạc xưa phối theo phong cách Jazz (Mắt Biếc, Riêng Một Góc Trời, Chiều Nay Không Có Em…).' },
-    { year: '2021', title: 'Connecting Jazz', detail: 'Tổ chức thành công chương trình giao lưu âm nhạc đối ngoại phối hợp cùng Đại sứ quán Thụy Điển.' },
-    { year: '2022', title: 'Đĩa than “Cô Đơn”', detail: 'Trở thành nghệ sĩ saxophone đầu tiên tại Việt Nam phát hành đĩa than (Vinyl LP) với album “Cô Đơn”.' },
+    { year: '2017', title: 'Album đầu tay "Em"', detail: 'Ra mắt MV "Mùa Thu Cho Em" và album đầu tay "Em" gồm 9 tình khúc nổi tiếng của các nhạc sĩ Ngô Thụy Miên, Vũ Thành An.' },
+    { year: '2019', title: 'MV "Hello Việt Nam"', detail: 'Ra mắt MV được quay tại nhiều quốc gia châu Âu và nhiều địa điểm đẹp tại Việt Nam.' },
+    { year: '2023', title: 'Liveshow Trịnh Jazz', detail: 'Tổ chức liveshow Trịnh Jazz tại Vườn Quốc gia Ba Vì - Hà Nội, để lại ấn tượng sâu sắc với khán giả.' },
+    { year: '2023', title: 'Đĩa than "Cô Đơn"', detail: 'Trở thành nghệ sĩ saxophone đầu tiên tại Việt Nam phát hành đĩa than saxophone với album "Cô Đơn".' },
+    { year: '2024', title: 'Tuần Văn hóa Việt Nam tại Thụy Điển', detail: 'Biểu diễn trong chương trình hòa nhạc hữu nghị tại Nhà hát Musikaliska Kvarteret, Stockholm.' },
+    { year: '2025', title: 'Hoạt động quốc tế và truyền hình', detail: 'Biểu diễn tại các sự kiện ngoại giao, thực hiện chuyến lưu diễn châu Âu, tổ chức liveshow và xuất hiện trong nhiều chương trình truyền hình quan trọng.' },
   ],
-  repertoire: ['Hạ Trắng', 'Diễm Xưa', 'Riêng Một Góc Trời', 'Mắt Biếc', 'Chiều Nay Không Có Em', 'Autumn Leaves', 'Fly Me To The Moon', 'My Way'],
+  repertoire: ['Cô Đơn', 'Mùa Thu Cho Em', 'Hello Việt Nam', 'Hạ Trắng', 'Diễm Xưa', 'Riêng Một Góc Trời', 'Mắt Biếc', 'Chiều Nay Không Có Em'],
 };
 
 export const blogPosts: BlogPost[] = [

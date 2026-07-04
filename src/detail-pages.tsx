@@ -14,8 +14,10 @@ import {
   Star,
   Ticket,
 } from 'lucide-react';
-import { SafeImage } from './sections';
-import type { ArtistProfile, Course, LeadFormErrors, LeadFormField, MediaItem, Tour, Workshop } from './content';
+import { Lightbox, type LightboxImage } from './lightbox';
+import { useLightbox } from './use-lightbox';
+import { SafeImage } from './safe-image';
+import type { ArtistProfile, Course, LeadFormErrors, LeadFormField, MediaItem, Photo, Tour, Workshop } from './content';
 import { normalizeVideoEmbedUrl } from './lib/video-url';
 
 const fieldClassName =
@@ -398,6 +400,74 @@ interface ArtistDetailPageProps {
   onContact: () => void;
 }
 
+function MilestoneGallery({ images, title }: { images?: string[]; title: string }) {
+  const galleryImages = (images ?? []).filter(Boolean);
+  const lightboxImages: LightboxImage[] = galleryImages.map((image) => ({ src: image, caption: title }));
+  const { openIndex, setOpenIndex, open: openLightbox, close: closeLightbox, registerTrigger } = useLightbox();
+
+  if (galleryImages.length === 0) return null;
+
+  const renderImageButton = (image: string, index: number, className: string, overlay?: ReactNode, openAsIndex = index) => (
+    <button
+      key={`${image}-${index}`}
+      ref={registerTrigger(openAsIndex)}
+      type="button"
+      onClick={() => openLightbox(openAsIndex)}
+      className={`focus-ring group relative overflow-hidden border border-[#BF9B30]/20 bg-[#EFE6D6] cursor-zoom-in ${className}`}
+      aria-label={`Mở ảnh ${openAsIndex + 1} của ${title}`}
+    >
+      <SafeImage
+        src={image}
+        alt={title}
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+      />
+      {overlay}
+    </button>
+  );
+
+  return (
+    <div className="mt-4">
+      {galleryImages.length === 1 && renderImageButton(galleryImages[0], 0, 'aspect-video w-full rounded-2xl')}
+
+      {galleryImages.length === 2 && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {galleryImages.map((image, index) => renderImageButton(image, index, 'aspect-[4/3] rounded-2xl'))}
+        </div>
+      )}
+
+      {galleryImages.length >= 3 && (
+        <div className="grid grid-cols-1 gap-2 sm:h-[320px] sm:grid-cols-3 sm:grid-rows-2">
+          {renderImageButton(galleryImages[0], 0, 'aspect-[4/3] rounded-2xl sm:col-span-2 sm:row-span-2 sm:aspect-auto')}
+          {renderImageButton(galleryImages[1], 1, 'aspect-square rounded-2xl sm:aspect-auto')}
+          {renderImageButton(
+            galleryImages[2],
+            2,
+            'aspect-square rounded-2xl sm:aspect-auto',
+            galleryImages.length > 3 ? (
+              <span className="absolute inset-0 grid place-items-center bg-[#211D18]/58 font-serif-lux text-3xl text-[#FFFDF9] backdrop-blur-[1px]">
+                +{galleryImages.length - 3}
+              </span>
+            ) : undefined,
+            galleryImages.length > 3 ? 3 : 2,
+          )}
+        </div>
+      )}
+
+      {openIndex !== null && (
+        <Lightbox
+          images={lightboxImages}
+          title={title}
+          index={openIndex}
+          onIndexChange={setOpenIndex}
+          onClose={closeLightbox}
+        />
+      )}
+    </div>
+  );
+}
+
 export function ArtistDetailPage({ artist, onBack, onContact }: ArtistDetailPageProps) {
   return (
     <DetailShell
@@ -428,14 +498,15 @@ export function ArtistDetailPage({ artist, onBack, onContact }: ArtistDetailPage
       </DetailBlock>
 
       <DetailBlock title="Dấu mốc">
-        <ol className="relative space-y-6 pl-6">
+        <ol className="relative space-y-8 pl-6">
           <span aria-hidden="true" className="absolute left-[5px] top-2 bottom-2 w-px bg-gradient-to-b from-transparent via-[#BF9B30]/45 to-transparent" />
           {artist.milestones.map((milestone) => (
-            <li key={milestone.year} className="relative">
+            <li key={`${milestone.year}-${milestone.title}`} className="relative">
               <span aria-hidden="true" className="absolute -left-6 top-1.5 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#DFBD69] to-[#BF9B30] ring-4 ring-[#FFFDF9]" />
               <span className="font-serif-lux text-lg text-[#AF8C43]">{milestone.year}</span>
               <h3 className="font-serif-lux text-lg text-[#211D18]">{milestone.title}</h3>
               <p className="mt-1 font-sans-clean text-sm leading-relaxed text-[#2A2520]/75">{milestone.detail}</p>
+              <MilestoneGallery images={milestone.images} title={milestone.title} />
             </li>
           ))}
         </ol>
@@ -472,6 +543,89 @@ const bookingEventTypes = [
   'Tiệc cưới',
   'Sự kiện cá nhân khác',
 ];
+
+interface GalleryPageProps {
+  photos: Photo[];
+  onBack: () => void;
+}
+
+export function GalleryPage({ photos, onBack }: GalleryPageProps) {
+  const galleryPhotos = photos.filter((photo) => photo.image);
+  const lightboxImages: LightboxImage[] = galleryPhotos.map((photo) => ({ src: photo.image, caption: photo.caption }));
+  const { openIndex, setOpenIndex, open: openLightbox, close: closeLightbox, registerTrigger } = useLightbox();
+
+  return (
+    <article className="relative bg-gradient-to-b from-[#FBF9F4] via-[#F7F1E5] to-[#FBF9F4] px-5 pt-28 pb-16 sm:pt-32 lg:pb-24">
+      <div aria-hidden="true" className="section-rule" />
+      <div className="mx-auto max-w-5xl">
+        <button
+          type="button"
+          onClick={onBack}
+          className="focus-ring mb-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#BF9B30]/35 bg-[#FFFDF9]/80 px-4 py-2 text-[11px] font-bold uppercase tracked-sm text-gold-ink transition-colors hover:bg-[#F6EFDF]"
+        >
+          <ArrowLeft size={14} />
+          Quay lại Giới thiệu
+        </button>
+
+        <header className="mb-9 border-b border-[#BF9B30]/18 pb-7">
+          <span className="section-kicker">
+            <Sparkles size={14} />
+            Thư viện
+          </span>
+          <h1 className="mt-4 font-serif-lux text-4xl leading-tight text-[#211D18] sm:text-5xl">
+            Khoảnh khắc &amp; Kỷ niệm
+          </h1>
+          <p className="mt-5 max-w-2xl font-garamond text-xl italic leading-relaxed text-[#7A5E22]">
+            Những lát cắt đời thường, hậu trường và ký ức nhỏ giữ lại bên cạnh tiếng kèn.
+          </p>
+        </header>
+
+        {galleryPhotos.length > 0 ? (
+          <div className="columns-2 gap-4 sm:columns-3 lg:columns-4">
+            {galleryPhotos.map((photo, index) => (
+              <button
+                key={photo.id}
+                ref={registerTrigger(index)}
+                type="button"
+                onClick={() => openLightbox(index)}
+                className="focus-ring group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-xl border border-[#BF9B30]/20 bg-[#EFE6D6] text-left cursor-zoom-in shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]"
+                aria-label={`Mở ảnh ${index + 1}${photo.caption ? `: ${photo.caption}` : ''}`}
+              >
+                <SafeImage
+                  src={photo.image}
+                  alt={photo.caption || 'Ảnh trong thư viện cá nhân'}
+                  loading="lazy"
+                  decoding="async"
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  className="h-auto w-full transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+                {photo.caption ? (
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#211D18]/72 to-transparent px-3 pb-3 pt-10 font-sans-clean text-xs leading-snug text-[#FFFDF9] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                    {photo.caption}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[1.1rem] border border-dashed border-[#BF9B30]/30 bg-[#FFFDF9]/75 px-6 py-12 text-center">
+            <p className="font-sans-clean text-sm text-[#2A2520]/65">Thư viện đang được cập nhật...</p>
+          </div>
+        )}
+
+        {openIndex !== null && (
+          <Lightbox
+            images={lightboxImages}
+            title="Thư viện ảnh"
+            index={openIndex}
+            onIndexChange={setOpenIndex}
+            onClose={closeLightbox}
+          />
+        )}
+      </div>
+    </article>
+  );
+}
 
 interface BookingDetailPageProps {
   submitted: boolean;

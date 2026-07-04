@@ -193,6 +193,11 @@ export function SaxExplorerSection() {
       if (rotorRef.current) {
         rotorRef.current.style.transform = `rotateX(${current.current.rx.toFixed(2)}deg) rotateY(${current.current.ry.toFixed(2)}deg)`;
       }
+      if (stageRef.current) {
+        // Unitless rotation consumed by CSS calc() so the sheen, floor
+        // shadow and backdrop rings react to the live rotation.
+        stageRef.current.style.setProperty('--sax-ry', current.current.ry.toFixed(2));
+      }
     };
 
     const tick = () => {
@@ -280,6 +285,9 @@ export function SaxExplorerSection() {
               className={`sax-explorer relative mx-auto w-full max-w-[24rem] sm:max-w-[28rem] ${revealed ? 'is-revealed' : ''}`}
             >
               <div ref={stageRef} className="sax-stage">
+                <div aria-hidden="true" className="sax-rings" />
+                <div aria-hidden="true" className="sax-floor" />
+                <div aria-hidden="true" className="sax-floor-ring" />
                 <div
                   className="sax-grab relative touch-pan-y select-none"
                   style={{ aspectRatio: '482/959' }}
@@ -443,6 +451,10 @@ function SaxophoneSvg() {
         </defs>
       </svg>
 
+      {/* Layer 0: oversized serif word deep behind the instrument — its bigger
+          Z offset makes it parallax against the sax while rotating */}
+      <span aria-hidden="true" className="sax-ghost-word">Saxophone</span>
+
       {/* Layer 1: Realistic blurred cast shadow */}
       <img
         src="/sax-real.png"
@@ -451,12 +463,26 @@ function SaxophoneSvg() {
         decoding="async"
         className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
         style={{
-          transform: 'translateZ(-25px) scale(0.98)',
-          filter: 'blur(12px) brightness(0) opacity(0.35)',
+          transform: 'translateZ(-26px) scale(0.98)',
+          filter: 'blur(13px) brightness(0) opacity(0.30)',
         }}
       />
-      
-      {/* Layer 2: Ultra-realistic saxophone photo */}
+
+      {/* Layer 2: dark bronze copy just behind the photo — its edge peeks out
+          when the body turns, faking real material thickness */}
+      <img
+        src="/sax-real.png"
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+        style={{
+          transform: 'translateZ(-12px)',
+          filter: 'brightness(0.5) sepia(0.4) saturate(1.6)',
+        }}
+      />
+
+      {/* Layer 3: Ultra-realistic saxophone photo */}
       <img
         src="/sax-real.png"
         alt="Alto Saxophone"
@@ -469,18 +495,9 @@ function SaxophoneSvg() {
         }}
       />
 
-      {/* Layer 3: High-contrast light reflection sheen */}
-      <div
-        className="absolute inset-0 pointer-events-none overflow-hidden rounded-full"
-        style={{
-          transform: 'translateZ(10px)',
-          mixBlendMode: 'overlay',
-          opacity: 0.15,
-          background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.7) 48%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.7) 52%, transparent 70%)',
-          backgroundSize: '200% 100%',
-          animation: 'saxGlint 6s ease-in-out infinite',
-        }}
-      />
+      {/* Layer 4: room-locked light sheen, masked to the brass silhouette and
+          positioned from the live rotation — the metal glints as it turns */}
+      <div aria-hidden="true" className="sax-sheen" />
     </div>
   );
 }

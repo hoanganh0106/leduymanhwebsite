@@ -13,8 +13,10 @@ import {
   type ContactFormData,
   type Course,
   type MediaItem,
+  type Milestone,
   type LeadFormErrors,
   type LeadFormField,
+  type Photo,
   type SiteImages,
   type Tour,
   type Workshop,
@@ -36,6 +38,7 @@ import {
   BookingDetailPage,
   CourseDetailPage,
   DetailNotFound,
+  GalleryPage,
   MediaDetailPage,
   TourDetailPage,
   WorkshopDetailPage,
@@ -54,6 +57,15 @@ import { SaxExplorerSection } from './sax-explorer';
 
 const HEADER_BRAND_REVEAL_OFFSET = 96;
 const HEADER_SOLID_REVEAL_OFFSET = 104;
+const isRemoteContentConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+const defaultSiteImages: SiteImages = {
+  hero_image: defaultHeroImage,
+  about_image: defaultAboutImage,
+};
+const pendingSiteImages: SiteImages = {
+  hero_image: '',
+  about_image: '',
+};
 
 const defaultFormData: ContactFormData = {
   name: '',
@@ -116,6 +128,7 @@ const detailParentSection = (kind: DetailKind | undefined): ContentSectionId => 
     case 'media':
       return 'performances';
     case 'artist':
+    case 'gallery':
       return 'about';
     case 'booking':
       return 'contact';
@@ -194,10 +207,9 @@ export default function App() {
   const [workshopList, setWorkshopList] = useState<Workshop[]>(defaultWorkshops);
   const [postList, setPostList] = useState<BlogPost[]>(defaultPosts);
   const [mediaList, setMediaList] = useState<MediaItem[]>(defaultMedia);
-  const [siteImages, setSiteImages] = useState<SiteImages>({
-    hero_image: defaultHeroImage,
-    about_image: defaultAboutImage,
-  });
+  const [milestoneList, setMilestoneList] = useState<Milestone[]>(artistProfile.milestones);
+  const [photoList, setPhotoList] = useState<Photo[]>([]);
+  const [siteImages, setSiteImages] = useState<SiteImages>(() => (isRemoteContentConfigured ? pendingSiteImages : defaultSiteImages));
   const [detail, setDetail] = useState<DetailRoute | null>(parseDetailFromHash);
 
   const heroRef = useRef<HTMLElement>(null);
@@ -205,7 +217,7 @@ export default function App() {
   const progressRef = useRef<HTMLDivElement>(null);
   const showHeaderBrandRef = useRef(false);
   const isHeaderSolidByPositionRef = useRef(false);
-  const revealRef = useScrollReveal([activeSection, tours, courseList, workshopList, postList, mediaList, siteImages, detail]);
+  const revealRef = useScrollReveal([activeSection, tours, courseList, workshopList, postList, mediaList, photoList, siteImages, detail]);
 
   useEffect(() => {
     let rafId = 0;
@@ -280,20 +292,31 @@ export default function App() {
     // heavy client stays out of the initial bundle. The page already renders
     // with built-in defaults; this just upgrades them once data arrives.
     import('./lib/content-data')
-      .then(({ fetchTours, fetchWorkshops, fetchCourses, fetchPosts, fetchMedia, fetchSiteImages }) =>
-        Promise.all([fetchTours(), fetchWorkshops(), fetchCourses(), fetchPosts(), fetchMedia(), fetchSiteImages()]),
+      .then(({ fetchTours, fetchWorkshops, fetchCourses, fetchPosts, fetchMedia, fetchMilestones, fetchPhotos, fetchSiteImages }) =>
+        Promise.all([
+          fetchTours(),
+          fetchWorkshops(),
+          fetchCourses(),
+          fetchPosts(),
+          fetchMedia(),
+          fetchMilestones(),
+          fetchPhotos(),
+          fetchSiteImages(),
+        ]),
       )
-      .then(([nextTours, nextWorkshops, nextCourses, nextPosts, nextMedia, nextSiteImages]) => {
+      .then(([nextTours, nextWorkshops, nextCourses, nextPosts, nextMedia, nextMilestones, nextPhotos, nextSiteImages]) => {
         if (!active) return;
         setTours(nextTours);
         setWorkshopList(nextWorkshops);
         setCourseList(nextCourses);
         setPostList(nextPosts);
         setMediaList(nextMedia);
+        setMilestoneList(nextMilestones);
+        setPhotoList(nextPhotos);
         setSiteImages(nextSiteImages);
       })
       .catch(() => {
-        /* keep built-in defaults on failure */
+        if (active) setSiteImages(defaultSiteImages);
       });
     return () => {
       active = false;
@@ -526,7 +549,9 @@ export default function App() {
         return item ? <MediaDetailPage item={item} onBack={closeDetail} /> : <DetailNotFound onBack={closeDetail} />;
       }
       case 'artist':
-        return <ArtistDetailPage artist={artistProfile} onBack={closeDetail} onContact={() => handleOpenDetail('booking', '')} />;
+        return <ArtistDetailPage artist={{ ...artistProfile, milestones: milestoneList }} onBack={closeDetail} onContact={() => handleOpenDetail('booking', '')} />;
+      case 'gallery':
+        return <GalleryPage photos={photoList} onBack={closeDetail} />;
       case 'booking':
         return (
           <BookingDetailPage
@@ -575,8 +600,10 @@ export default function App() {
               {activeSection === 'about' && (
                 <AboutSection
                   aboutImage={siteImages.about_image}
+                  photos={photoList}
                   onNavigate={handleNavigate}
                   onViewBio={() => handleOpenDetail('artist', '')}
+                  onViewGallery={() => handleOpenDetail('gallery', '')}
                 />
               )}
               {activeSection === 'sax' && <SaxExplorerSection />}

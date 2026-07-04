@@ -3,7 +3,7 @@ export type SiteSectionId = 'hero' | ContentSectionId;
 
 /* A full-page detail view (artist bio, course, tour, workshop, video, post)
    reachable by clicking an item. Routed through the URL hash. */
-export type DetailKind = 'post' | 'course' | 'tour' | 'workshop' | 'media' | 'artist' | 'booking';
+export type DetailKind = 'post' | 'course' | 'tour' | 'workshop' | 'media' | 'artist' | 'booking' | 'gallery';
 export interface DetailRoute {
   kind: DetailKind;
   id: string;
@@ -20,6 +20,7 @@ export const KIND_TO_SEGMENT: Record<DetailKind, string> = {
   media: 'video',
   artist: 'nghe-si',
   booking: 'dat-lich',
+  gallery: 'thu-vien-anh',
 };
 
 export const SEGMENT_TO_KIND: Record<string, DetailKind> = {
@@ -30,10 +31,11 @@ export const SEGMENT_TO_KIND: Record<string, DetailKind> = {
   video: 'media',
   'nghe-si': 'artist',
   'dat-lich': 'booking',
+  'thu-vien-anh': 'gallery',
 };
 
 /* Detail kinds reached as a standalone action (no item id in the URL). */
-export const ID_LESS_DETAIL_KINDS: DetailKind[] = ['artist', 'booking'];
+export const ID_LESS_DETAIL_KINDS: DetailKind[] = ['artist', 'booking', 'gallery'];
 
 export interface ContentTab {
   id: ContentSectionId;

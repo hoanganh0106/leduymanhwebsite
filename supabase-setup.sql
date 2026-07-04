@@ -1,8 +1,9 @@
 -- =====================================================================
 --  Lê Duy Mạnh Saxophone — Supabase setup
 --  Chạy toàn bộ file này trong: Supabase Dashboard → SQL Editor → Run
---  Tạo 3 bảng (tours / workshops / courses), bật phân quyền, và nạp
---  dữ liệu mẫu trùng với nội dung mặc định của trang web.
+--  Tạo các bảng nội dung (tours / milestones / workshops / courses /
+--  posts / media / settings / leads), bật phân quyền, và nạp dữ liệu
+--  mẫu trùng với nội dung mặc định của trang web.
 -- =====================================================================
 
 -- ---------- BẢNG ----------
@@ -14,6 +15,16 @@ create table if not exists public.tours (
   title       text not null default '',
   location    text not null default '',
   role        text not null default '',
+  sort_order  int  not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.milestones (
+  id          uuid primary key default gen_random_uuid(),
+  year        text not null default '',
+  title       text not null default '',
+  detail      text not null default '',
+  images      text[] not null default '{}',
   sort_order  int  not null default 0,
   created_at  timestamptz not null default now()
 );
@@ -65,6 +76,14 @@ create table if not exists public.media (
   created_at  timestamptz not null default now()
 );
 
+create table if not exists public.photos (
+  id          uuid primary key default gen_random_uuid(),
+  caption     text not null default '',
+  image       text not null default '',
+  sort_order  int  not null default 0,
+  created_at  timestamptz not null default now()
+);
+
 create table if not exists public.settings (
   key         text primary key,
   value       text not null default '',
@@ -82,41 +101,66 @@ create table if not exists public.leads (
   created_at  timestamptz not null default now()
 );
 
+alter table public.milestones add column if not exists images text[] not null default '{}';
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'milestones' and column_name = 'image'
+  ) then
+    update public.milestones
+      set images = array[image]
+      where image <> '' and coalesce(array_length(images, 1), 0) = 0;
+    alter table public.milestones drop column image;
+  end if;
+end $$;
+
 -- ---------- PHÂN QUYỀN (Row Level Security) ----------
 alter table public.tours      enable row level security;
+alter table public.milestones enable row level security;
 alter table public.workshops  enable row level security;
 alter table public.courses    enable row level security;
 alter table public.posts      enable row level security;
 alter table public.media      enable row level security;
+alter table public.photos     enable row level security;
 alter table public.settings   enable row level security;
 alter table public.leads      enable row level security;
 
 -- Ai cũng ĐỌC được (để hiển thị trên web)
 drop policy if exists "public read tours"     on public.tours;
+drop policy if exists "public read milestones" on public.milestones;
 drop policy if exists "public read workshops" on public.workshops;
 drop policy if exists "public read courses"   on public.courses;
 drop policy if exists "public read posts"     on public.posts;
 drop policy if exists "public read media"     on public.media;
+drop policy if exists "public read photos"    on public.photos;
 drop policy if exists "public read settings"  on public.settings;
 create policy "public read tours"     on public.tours     for select using (true);
+create policy "public read milestones" on public.milestones for select using (true);
 create policy "public read workshops" on public.workshops for select using (true);
 create policy "public read courses"   on public.courses   for select using (true);
 create policy "public read posts"     on public.posts     for select using (true);
 create policy "public read media"     on public.media     for select using (true);
+create policy "public read photos"    on public.photos    for select using (true);
 create policy "public read settings"  on public.settings  for select using (true);
 
 -- Chỉ tài khoản ĐÃ ĐĂNG NHẬP mới được thêm/sửa/xóa
 drop policy if exists "auth write tours"     on public.tours;
+drop policy if exists "auth write milestones" on public.milestones;
 drop policy if exists "auth write workshops" on public.workshops;
 drop policy if exists "auth write courses"   on public.courses;
 drop policy if exists "auth write posts"     on public.posts;
 drop policy if exists "auth write media"     on public.media;
+drop policy if exists "auth write photos"    on public.photos;
 drop policy if exists "auth write settings"  on public.settings;
 create policy "auth write tours"     on public.tours     for all to authenticated using (true) with check (true);
+create policy "auth write milestones" on public.milestones for all to authenticated using (true) with check (true);
 create policy "auth write workshops" on public.workshops for all to authenticated using (true) with check (true);
 create policy "auth write courses"   on public.courses   for all to authenticated using (true) with check (true);
 create policy "auth write posts"     on public.posts     for all to authenticated using (true) with check (true);
 create policy "auth write media"     on public.media     for all to authenticated using (true) with check (true);
+create policy "auth write photos"    on public.photos    for all to authenticated using (true) with check (true);
 create policy "auth write settings"  on public.settings  for all to authenticated using (true) with check (true);
 
 -- Leads chá»©a dá»¯ liá»‡u cÃ¡ nhÃ¢n: khÃ¡ch chá»‰ Ä‘Æ°á»£c gá»­i, admin Ä‘Äƒng nháº­p má»›i Ä‘Æ°á»£c xem/sá»­a/xÃ³a
@@ -134,6 +178,21 @@ select * from (values
   ('Th03','2026','Masterclass','Masterclass & Acoustic Session','Học viện Âm nhạc Quốc gia Việt Nam','Giảng viên khách mời',4)
 ) as v(month, year, tag, title, location, role, sort_order)
 where not exists (select 1 from public.tours);
+
+insert into public.milestones (year, title, detail, sort_order)
+select * from (values
+  ('1999','Bước vào con đường khí nhạc','Bắt đầu học tại Nhạc viện Hà Nội với cây kèn Cor.',1),
+  ('2004','Bén duyên Saxophone','Chính thức chuyển sang theo đuổi và đam mê cây kèn saxophone.',2),
+  ('2015','Thạc sĩ Saxophone đầu tiên tại Việt Nam','Bảo vệ thành công luận án tốt nghiệp Thạc sĩ chuyên ngành sư phạm biểu diễn Saxophone.',3),
+  ('2016','Du học Thụy Điển','Nhận học bổng toàn phần của chính phủ tại Học viện Âm nhạc Malmö (Thụy Điển), chuyên ngành Saxophone Jazz.',4),
+  ('2017','Album đầu tay "Em"','Ra mắt MV "Mùa Thu Cho Em" và album đầu tay "Em" gồm 9 tình khúc nổi tiếng của các nhạc sĩ Ngô Thụy Miên, Vũ Thành An.',5),
+  ('2019','MV "Hello Việt Nam"','Ra mắt MV được quay tại nhiều quốc gia châu Âu và nhiều địa điểm đẹp tại Việt Nam.',6),
+  ('2023','Liveshow Trịnh Jazz','Tổ chức liveshow Trịnh Jazz tại Vườn Quốc gia Ba Vì - Hà Nội, để lại ấn tượng sâu sắc với khán giả.',7),
+  ('2023','Đĩa than "Cô Đơn"','Trở thành nghệ sĩ saxophone đầu tiên tại Việt Nam phát hành đĩa than saxophone với album "Cô Đơn".',8),
+  ('2024','Tuần Văn hóa Việt Nam tại Thụy Điển','Biểu diễn trong chương trình hòa nhạc hữu nghị tại Nhà hát Musikaliska Kvarteret, Stockholm.',9),
+  ('2025','Hoạt động quốc tế và truyền hình','Biểu diễn tại các sự kiện ngoại giao, thực hiện chuyến lưu diễn châu Âu, tổ chức liveshow và xuất hiện trong nhiều chương trình truyền hình quan trọng.',10)
+) as v(year, title, detail, sort_order)
+where not exists (select 1 from public.milestones);
 
 insert into public.workshops (date, year, title, location, price, status, sort_order)
 select * from (values
