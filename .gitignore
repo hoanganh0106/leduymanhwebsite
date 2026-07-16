@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local AI assistant and project-workflow metadata
+.agents/
+.claude/
+.codex/
+.trellis/
+AGENTS.md
+FrontendSkill.md
+plan-review-chinh-sua.md
